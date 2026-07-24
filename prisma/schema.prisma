@@ -1,0 +1,150 @@
+// نظام تتبع الأدوات والعدة (Tool Tracking System)
+// الحالة الحالية لكل أداة تُشتق من آخر Transaction — لا عمود status منفصل
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  KEEPER
+}
+
+/// أنواع الحركات — إضافة نوع جديد مستقبلاً = قيمة enum + منطق في الـ service
+enum TransactionType {
+  ADDITION // إضافة أداة جديدة (تصبح متوفرة)
+  ISSUE // صرف أداة إلى مكينة
+  SEND_TO_REPAIR // إخراج للتصليح
+  RETURN_FROM_REPAIR // رجوع من التصليح (تصبح متوفرة)
+}
+
+// ─── Multi-tenancy (جاهز للتوسع لاحقاً) ───────────────────
+// حالياً شركة واحدة فقط عبر الـ seed. كل الجداول مربوطة بـ organizationId.
+
+model Organization {
+  id                 String   @id @default(cuid())
+  name               String
+  /// إن كان false: التسجيل مغلق بعد أول مدير (ما عدا موافقة لاحقة عبر التفعيل)
+  allowPublicSignup  Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  profiles     Profile[]
+  categories   Category[]
+  items        Item[]
+  machines     Machine[]
+  transactions Transaction[]
+}
+
+// ─── Auth / Users ─────────────────────────────────────────
+// id = auth.users.id من Supabase (UUID). لا FK مباشرة لـ auth.users
+// لأن جدول auth في schema منفصل؛ المزامنة عبر Trigger أو عند أول تسجيل دخول.
+
+model Profile {
+  id             String       @id @db.Uuid
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  fullName       String
+  role           Role         @default(KEEPER)
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  transactions Transaction[]
+
+  @@index([organizationId, isActive])
+  @@index([organizationId, role])
+}
+
+// ─── Catalog ──────────────────────────────────────────────
+
+model Category {
+  id             String        @id @default(cuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  name           String
+  deletedAt      DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  items Item[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, deletedAt])
+}
+
+model Item {
+  id             String        @id @default(cuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  name           String
+  /// رمز اختياري للتمييز (مثل رقم تسلسلي داخلي). null مسموح ومتكرر في Postgres unique.
+  code           String?
+  categoryId     String
+  category       Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  notes          String?
+  deletedAt      DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  transactions Transaction[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, deletedAt])
+  @@index([organizationId, categoryId, deletedAt])
+  @@index([organizationId, name])
+  @@index([categoryId])
+}
+
+model Machine {
+  id             String        @id @default(cuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  name           String
+  location       String?
+  deletedAt      DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  transactions Transaction[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, deletedAt])
+}
+
+// ─── Activity Log (سجل الحركات — مصدر الحقيقة الوحيد للحالة) ─
+/// الحركات غير قابلة للتعديل/الحذف من الواجهة العادية (Audit trail).
+/// قواعد machineId تُفرض في الـ service + CHECK constraint في SQL:
+///   ISSUE          → machineId مطلوب
+///   باقي الأنواع   → machineId يجب أن يكون null
+
+model Transaction {
+  id             String          @id @default(cuid())
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  type           TransactionType
+  itemId         String
+  item           Item            @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  machineId      String?
+  machine        Machine?        @relation(fields: [machineId], references: [id], onDelete: Restrict)
+  notes          String?
+  performedById  String          @db.Uuid
+  performedBy    Profile         @relation(fields: [performedById], references: [id], onDelete: Restrict)
+  createdAt      DateTime        @default(now())
+
+  /// حاسم لاشتقاق حالة الأداة: آخر حركة لكل item
+  @@index([itemId, createdAt(sort: Desc)])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([organizationId, type, createdAt(sort: Desc)])
+  @@index([organizationId, itemId, createdAt(sort: Desc)])
+  @@index([organizationId, machineId, createdAt(sort: Desc)])
+  @@index([machineId, createdAt(sort: Desc)])
+  @@index([performedById])
+}
