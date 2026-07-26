@@ -1,8 +1,16 @@
 "use server";
 
+import { headers } from "next/headers";
 import { requireUser, requireRole } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import type { ExportRow } from "@/lib/export-report";
+import { clientKeyFromHeaders, rateLimit } from "@/lib/rate-limit";
+import {
+  exportItemSchema,
+  exportMachineSchema,
+  exportMaterialSchema,
+  exportMonthlySchema,
+} from "@/lib/validations";
 import {
   getItemTimeline,
   getMachineReport,
@@ -12,18 +20,25 @@ import {
 } from "@/services/reports";
 import { TransactionTypeLabel } from "@/types/domain";
 
-export async function loadMachineExportRows(input: {
-  machineId: string;
-  from?: string;
-  to?: string;
-}): Promise<ExportRow[]> {
+async function guardExportRate() {
+  const h = await headers();
+  const key = clientKeyFromHeaders(h, "export");
+  const result = await rateLimit(key, 20, 60_000);
+  if (!result.ok) {
+    throw new Error(`محاولات كثيرة. حاول بعد ${result.retryAfterSec} ثانية`);
+  }
+}
+
+export async function loadMachineExportRows(input: unknown): Promise<ExportRow[]> {
+  await guardExportRate();
   const { profile } = await requireUser();
-  if (!input.machineId) return [];
-  const rows = await getMachineReport({
+  const parsed = exportMachineSchema.safeParse(input);
+  if (!parsed.success) return [];
+  const { rows } = await getMachineReport({
     organizationId: profile.organizationId,
-    machineId: input.machineId,
-    from: input.from ? new Date(input.from) : undefined,
-    to: input.to ? new Date(`${input.to}T23:59:59`) : undefined,
+    machineId: parsed.data.machineId,
+    from: parsed.data.from ? new Date(parsed.data.from) : undefined,
+    to: parsed.data.to ? new Date(`${parsed.data.to}T23:59:59`) : undefined,
   });
   return rows.map((r) => [
     r.item.name,
@@ -34,14 +49,16 @@ export async function loadMachineExportRows(input: {
   ]);
 }
 
-export async function loadItemTimelineExportRows(input: {
-  itemId: string;
-}): Promise<ExportRow[]> {
+export async function loadItemTimelineExportRows(
+  input: unknown,
+): Promise<ExportRow[]> {
+  await guardExportRate();
   const { profile } = await requireUser();
-  if (!input.itemId) return [];
+  const parsed = exportItemSchema.safeParse(input);
+  if (!parsed.success) return [];
   const timeline = await getItemTimeline({
     organizationId: profile.organizationId,
-    itemId: input.itemId,
+    itemId: parsed.data.itemId,
   });
   return timeline.map((t) => [
     TransactionTypeLabel[t.type],
@@ -52,18 +69,18 @@ export async function loadItemTimelineExportRows(input: {
   ]);
 }
 
-export async function loadMaterialExportRows(input: {
-  itemId: string;
-  from?: string;
-  to?: string;
-}): Promise<ExportRow[]> {
+export async function loadMaterialExportRows(
+  input: unknown,
+): Promise<ExportRow[]> {
+  await guardExportRate();
   const { profile } = await requireUser();
-  if (!input.itemId) return [];
+  const parsed = exportMaterialSchema.safeParse(input);
+  if (!parsed.success) return [];
   const report = await getMaterialReport({
     organizationId: profile.organizationId,
-    itemId: input.itemId,
-    from: input.from ? new Date(input.from) : undefined,
-    to: input.to ? new Date(`${input.to}T23:59:59`) : undefined,
+    itemId: parsed.data.itemId,
+    from: parsed.data.from ? new Date(parsed.data.from) : undefined,
+    to: parsed.data.to ? new Date(`${parsed.data.to}T23:59:59`) : undefined,
   });
   if (!report) return [];
   return report.rows.map((r) => [
@@ -76,8 +93,12 @@ export async function loadMaterialExportRows(input: {
 }
 
 export async function loadRepairStatusExportRows(): Promise<ExportRow[]> {
+  await guardExportRate();
   const { profile } = await requireUser();
-  const rows = await getRepairStatusReport(profile.organizationId);
+  const { rows } = await getRepairStatusReport(profile.organizationId, {
+    page: 1,
+    pageSize: 100,
+  });
   return rows.map((r) => [
     r.name,
     r.code,
@@ -86,15 +107,17 @@ export async function loadRepairStatusExportRows(): Promise<ExportRow[]> {
   ]);
 }
 
-export async function loadMonthlyExportRows(input: {
-  year: number;
-  month: number;
-}): Promise<ExportRow[]> {
+export async function loadMonthlyExportRows(
+  input: unknown,
+): Promise<ExportRow[]> {
+  await guardExportRate();
   const { profile } = await requireRole(["ADMIN"]);
+  const parsed = exportMonthlySchema.safeParse(input);
+  if (!parsed.success) return [];
   const summary = await getMonthlySummary({
     organizationId: profile.organizationId,
-    year: input.year,
-    month: input.month,
+    year: parsed.data.year,
+    month: parsed.data.month,
   });
   return [
     ...Object.entries(summary.byType).map(([type, count]) => [

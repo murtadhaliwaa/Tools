@@ -39,7 +39,7 @@ export function MobileNav({
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger
               className={cn(
-                "inline-flex size-8 items-center justify-center rounded-lg border",
+                "inline-flex size-10 items-center justify-center rounded-lg border",
               )}
               aria-label="فتح القائمة"
             >
@@ -60,7 +60,7 @@ export function MobileNav({
                       prefetch
                       onClick={() => setOpen(false)}
                       className={cn(
-                        "flex items-center gap-2 rounded-lg px-3 py-2 text-sm",
+                        "flex items-center gap-2 rounded-lg px-3 py-3 text-sm",
                         active
                           ? "bg-primary text-primary-foreground"
                           : "hover:bg-muted",

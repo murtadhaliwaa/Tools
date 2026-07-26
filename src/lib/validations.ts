@@ -122,3 +122,29 @@ export const createTransactionSchema = z.discriminatedUnion("type", [
 ]);
 
 export type CreateTransactionInput = z.infer<typeof createTransactionSchema>;
+
+const optionalDateString = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "تاريخ غير صالح")
+  .optional();
+
+export const exportMachineSchema = z.object({
+  machineId: z.string().min(1, "المكينة مطلوبة"),
+  from: optionalDateString,
+  to: optionalDateString,
+});
+
+export const exportItemSchema = z.object({
+  itemId: z.string().min(1, "المادة مطلوبة"),
+});
+
+export const exportMaterialSchema = z.object({
+  itemId: z.string().min(1, "المادة مطلوبة"),
+  from: optionalDateString,
+  to: optionalDateString,
+});
+
+export const exportMonthlySchema = z.object({
+  year: z.coerce.number().int().min(2020).max(2100),
+  month: z.coerce.number().int().min(1).max(12),
+});

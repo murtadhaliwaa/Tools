@@ -34,14 +34,15 @@ export default async function MachineReportPage({
 
   const machines = await getMachinesCached(profile.organizationId);
 
-  const rows = machineId
+  const report = machineId
     ? await getMachineReport({
         organizationId: profile.organizationId,
         machineId,
         from: from ? new Date(from) : undefined,
         to: to ? new Date(`${to}T23:59:59`) : undefined,
       })
-    : [];
+    : null;
+  const rows = report?.rows ?? [];
 
   const machineName = machines.find((m) => m.id === machineId)?.name ?? "";
 
@@ -65,6 +66,11 @@ export default async function MachineReportPage({
         }
       />
 
+      {report?.truncated ? (
+        <p className="text-sm text-muted-foreground">
+          تم عرض أول {report.limit} حركة فقط. قلّص الفترة الزمنية لعرض الباقي.
+        </p>
+      ) : null}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">اختيار الفترة والمكينة</CardTitle>

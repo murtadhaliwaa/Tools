@@ -1,8 +1,11 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { createTransactionAction } from "@/actions";
+import {
+  createTransactionAction,
+  searchTransactionItemsAction,
+} from "@/actions";
 import type { CreateTransactionInput } from "@/lib/validations";
 import { ItemStatus, ItemStatusLabel } from "@/types/domain";
 import type { TransactionFormItem } from "@/services/items";
@@ -38,10 +41,24 @@ const TYPE_OPTIONS = [
   { value: "RETURN_FROM_REPAIR", label: "رجوع من التصليح" },
 ] as const;
 
+function toFormItem(
+  row: Awaited<ReturnType<typeof searchTransactionItemsAction>>[number],
+): TransactionFormItem {
+  return {
+    id: row.id,
+    name: row.name,
+    code: row.code,
+    categoryName: row.categoryName,
+    status: row.status as TransactionFormItem["status"],
+    machineName: row.machineName,
+    hasOutstandingIssue: row.hasOutstandingIssue,
+  };
+}
+
 export function TransactionForm({
   categories,
   machines,
-  items,
+  items: initialItems,
 }: {
   categories: CategoryOption[];
   machines: MachineOption[];
@@ -56,9 +73,23 @@ export function TransactionForm({
   const [code, setCode] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [notes, setNotes] = useState("");
+  const [searchResults, setSearchResults] = useState<TransactionFormItem[] | null>(
+    null,
+  );
+  const [selectedItem, setSelectedItem] = useState<TransactionFormItem | null>(
+    null,
+  );
   const [pending, startTransition] = useTransition();
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const items = searchResults ?? initialItems;
 
-  const itemOptions = useMemo(() => {
+  useEffect(() => {
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
+  }, []);
+
+  const filteredItems = useMemo(() => {
     let list = items;
     if (type === "RETURN_FROM_REPAIR") {
       list = list.filter((i) => i.status === ItemStatus.IN_REPAIR);
@@ -70,14 +101,23 @@ export function TransactionForm({
       list = list.filter((i) => i.status !== ItemStatus.IN_REPAIR);
     }
 
-    return list.map((item) => ({
-      value: item.id,
-      label: `${item.name}${item.code ? ` (${item.code})` : ""} — ${ItemStatusLabel[item.status]}${
-        item.machineName ? ` / ${item.machineName}` : ""
-      }`,
-      keywords: `${item.name} ${item.code ?? ""} ${item.categoryName}`,
-    }));
-  }, [items, type]);
+    if (selectedItem && !list.some((i) => i.id === selectedItem.id)) {
+      list = [selectedItem, ...list];
+    }
+
+    return list;
+  }, [items, type, selectedItem]);
+  const itemOptions = useMemo(
+    () =>
+      filteredItems.map((item) => ({
+        value: item.id,
+        label: `${item.name}${item.code ? ` (${item.code})` : ""} — ${ItemStatusLabel[item.status]}${
+          item.machineName ? ` / ${item.machineName}` : ""
+        }`,
+        keywords: `${item.name} ${item.code ?? ""} ${item.categoryName}`,
+      })),
+    [filteredItems],
+  );
 
   const machineOptions = useMemo(
     () =>
@@ -96,6 +136,16 @@ export function TransactionForm({
       })),
     [categories],
   );
+
+  function onItemSearch(query: string) {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      void (async () => {
+        const rows = await searchTransactionItemsAction(query);
+        setSearchResults(rows.map(toFormItem));
+      })();
+    }, 250);
+  }
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -131,6 +181,7 @@ export function TransactionForm({
       if (result.success) {
         toast.success(result.message ?? "تم بنجاح");
         setItemId("");
+        setSelectedItem(null);
         setMachineId("");
         setName("");
         setCode("");
@@ -160,6 +211,7 @@ export function TransactionForm({
                 if (!v) return;
                 setType(v as typeof type);
                 setItemId("");
+                setSelectedItem(null);
               }}
             >
               <SelectTrigger className="w-full">
@@ -228,10 +280,17 @@ export function TransactionForm({
               <SearchCombobox
                 options={itemOptions}
                 value={itemId}
-                onChange={setItemId}
+                onChange={(id) => {
+                  setItemId(id);
+                  setSelectedItem(
+                    filteredItems.find((i) => i.id === id) ?? null,
+                  );
+                }}
                 placeholder="ابحث باسم الأداة أو الرمز..."
                 searchPlaceholder="اكتب للبحث..."
-                emptyText="لا توجد أدوات مطابقة"
+                emptyText="لا توجد أدوات مطابقة — جرّب كلمات أخرى"
+                onSearchChange={onItemSearch}
+                serverFilter
               />
             </div>
           )}

@@ -41,3 +41,12 @@ export function deriveItemStatus(
       return ItemStatus.AVAILABLE;
   }
 }
+
+/** أثر حذف حركة على الكمية — عكس منطق الإنشاء */
+export function quantityDeltaOnDelete(
+  type: NonNullable<TransactionTypeLike>,
+): 1 | -1 | 0 {
+  if (type === "ISSUE") return 1;
+  if (type === "RETURN_FROM_MACHINE") return -1;
+  return 0;
+}

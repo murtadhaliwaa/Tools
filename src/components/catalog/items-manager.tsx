@@ -11,8 +11,10 @@ import type { ItemWithStatus } from "@/services/items";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { BusyOverlay } from "@/components/shared/busy-overlay";
 import { LoadingButton } from "@/components/shared/loading-button";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -49,6 +51,7 @@ export function ItemsManager({
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ItemWithStatus | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -99,13 +102,14 @@ export function ItemsManager({
     });
   }
 
-  function onDelete(id: string) {
-    if (!confirm("هل أنت متأكد من حذف الأداة؟")) return;
+  function onDeleteConfirmed() {
+    if (!deleteId) return;
     setBusyLabel(ui.deleting);
     startTransition(async () => {
-      const result = await deleteItemAction(id);
+      const result = await deleteItemAction(deleteId);
       if (result.success) toast.success(result.message);
       else toast.error(result.message);
+      setDeleteId(null);
     });
   }
 
@@ -124,56 +128,70 @@ export function ItemsManager({
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-3">
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="اسم الأداة"
-                  disabled={pending}
-                />
-                <Input
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  placeholder="الرمز (اختياري)"
-                  dir="ltr"
-                  disabled={pending}
-                />
-                <Select
-                  value={categoryId}
-                  onValueChange={(v) => setCategoryId(v ?? "")}
-                  disabled={pending}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="التصنيف">
-                      {categories.find((c) => c.id === categoryId)?.name ??
-                        "التصنيف"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  step={1}
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  placeholder="عدد المادة"
-                  dir="ltr"
-                  disabled={pending}
-                  aria-label="عدد المادة"
-                />
-                <Input
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="ملاحظات (اختياري)"
-                  disabled={pending}
-                />
+                <div className="space-y-1.5">
+                  <Label htmlFor="item-name">اسم الأداة</Label>
+                  <Input
+                    id="item-name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    disabled={pending}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="item-code">الرمز (اختياري)</Label>
+                  <Input
+                    id="item-code"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    dir="ltr"
+                    disabled={pending}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>التصنيف</Label>
+                  <Select
+                    value={categoryId}
+                    onValueChange={(v) => setCategoryId(v ?? "")}
+                    disabled={pending}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="التصنيف">
+                        {categories.find((c) => c.id === categoryId)?.name ??
+                          "التصنيف"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="item-qty">عدد المادة</Label>
+                  <Input
+                    id="item-qty"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    step={1}
+                    value={quantity}
+                    onChange={(e) => setQuantity(e.target.value)}
+                    dir="ltr"
+                    disabled={pending}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="item-notes">ملاحظات (اختياري)</Label>
+                  <Input
+                    id="item-notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    disabled={pending}
+                  />
+                </div>
                 <LoadingButton
                   onClick={onSave}
                   loading={pending}
@@ -188,7 +206,20 @@ export function ItemsManager({
         </div>
       ) : null}
 
-      <BusyOverlay busy={pending && !open} label={busyLabel}>
+      <ConfirmDialog
+        open={Boolean(deleteId)}
+        onOpenChange={(next) => {
+          if (!next) setDeleteId(null);
+        }}
+        title="حذف الأداة"
+        description="هل أنت متأكد من حذف هذه الأداة؟"
+        confirmLabel="حذف"
+        destructive
+        loading={pending}
+        onConfirm={onDeleteConfirmed}
+      />
+
+      <BusyOverlay busy={pending && !open && !deleteId} label={busyLabel}>
         <Table className="table-fixed">
           <TableHeader>
             <TableRow>
@@ -246,15 +277,14 @@ export function ItemsManager({
                       >
                         تعديل
                       </Button>
-                      <LoadingButton
+                      <Button
                         variant="destructive"
                         size="sm"
-                        loading={pending}
-                        loadingText={ui.deleting}
-                        onClick={() => onDelete(item.id)}
+                        disabled={pending}
+                        onClick={() => setDeleteId(item.id)}
                       >
                         حذف
-                      </LoadingButton>
+                      </Button>
                     </TableCell>
                   ) : null}
                 </TableRow>

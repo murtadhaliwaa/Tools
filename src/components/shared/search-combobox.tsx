@@ -32,6 +32,8 @@ export function SearchCombobox({
   searchPlaceholder = "ابحث...",
   emptyText = "لا توجد نتائج",
   disabled = false,
+  onSearchChange,
+  serverFilter = false,
 }: {
   options: ComboboxOption[];
   value: string;
@@ -40,6 +42,10 @@ export function SearchCombobox({
   searchPlaceholder?: string;
   emptyText?: string;
   disabled?: boolean;
+  /** يُستدعى عند تغيير نص البحث (للبحث من السيرفر) */
+  onSearchChange?: (query: string) => void;
+  /** عطّل فلترة cmdk المحلية عند البحث من السيرفر */
+  serverFilter?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -63,8 +69,11 @@ export function SearchCombobox({
         <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
       </PopoverTrigger>
       <PopoverContent className="w-80 max-w-[calc(100vw-2rem)] p-0" align="start">
-        <Command>
-          <CommandInput placeholder={searchPlaceholder} />
+        <Command shouldFilter={!serverFilter}>
+          <CommandInput
+            placeholder={searchPlaceholder}
+            onValueChange={onSearchChange}
+          />
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>

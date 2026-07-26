@@ -180,7 +180,12 @@ export type TransactionFormItem = {
 
 export async function getItemsForTransactionForm(
   organizationId: string,
+  options?: { query?: string; limit?: number },
 ): Promise<TransactionFormItem[]> {
+  const query = options?.query?.trim() ?? "";
+  const limit = Math.min(Math.max(options?.limit ?? 40, 1), 80);
+  const pattern = query ? `%${query}%` : "%";
+
   const rows = await prisma.$queryRaw<
     Array<{
       id: string;
@@ -219,8 +224,12 @@ export async function getItemsForTransactionForm(
     LEFT JOIN "Machine" m ON m.id = t."machineId"
     WHERE i."organizationId" = ${organizationId}
       AND i."deletedAt" IS NULL
+      AND (
+        i.name ILIKE ${pattern}
+        OR COALESCE(i.code, '') ILIKE ${pattern}
+      )
     ORDER BY i.name ASC
-    LIMIT 800
+    LIMIT ${limit}
   `;
 
   return rows.map((row) => {

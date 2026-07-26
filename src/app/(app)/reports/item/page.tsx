@@ -64,7 +64,11 @@ export default async function ItemTimelinePage({
       <Card>
         <CardContent className="p-6">
           {timeline.length === 0 ? (
-            <p className="text-sm text-muted-foreground">لا توجد حركات</p>
+            <p className="text-sm text-muted-foreground">
+              {itemId
+                ? "لا توجد حركات لهذه الأداة"
+                : "اختر أداة ثم اعرض السجل"}
+            </p>
           ) : (
             <ol className="relative space-y-6 border-s border-border ps-6">
               {timeline.map((event) => (

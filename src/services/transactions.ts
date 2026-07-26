@@ -1,12 +1,14 @@
+import { getItemStatusById } from "@/services/items";
+import { deriveItemStatus, quantityDeltaOnDelete } from "@/services/item-status";
+import { ItemStatus } from "@/types/domain";
+import type { Profile, TransactionType } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import {
   createTransactionSchema,
   type CreateTransactionInput,
 } from "@/lib/validations";
-import { getItemStatusById } from "@/services/items";
-import { deriveItemStatus } from "@/services/item-status";
-import { ItemStatus } from "@/types/domain";
-import type { Profile, TransactionType } from "@/generated/prisma/client";
+
+export { quantityDeltaOnDelete } from "@/services/item-status";
 
 export async function createTransaction(
   input: CreateTransactionInput,
@@ -193,4 +195,41 @@ export async function assertItemAccessible(
   const current = await getItemStatusById(itemId, organizationId);
   if (!current) throw new Error("الأداة غير موجودة");
   return current;
+}
+
+type TxClient = Parameters<
+  Parameters<typeof prisma.$transaction>[0]
+>[0];
+
+/** يعكس كمية الصنف بعد حذف آخر حركة (داخل معاملة موجودة) */
+export async function reverseQuantityAfterDelete(
+  tx: TxClient,
+  input: {
+    itemId: string;
+    organizationId: string;
+    type: TransactionType;
+  },
+) {
+  const delta = quantityDeltaOnDelete(input.type);
+  if (delta === 0) return;
+
+  if (delta > 0) {
+    await tx.item.updateMany({
+      where: {
+        id: input.itemId,
+        organizationId: input.organizationId,
+        deletedAt: null,
+      },
+      data: { quantity: { increment: delta } },
+    });
+    return;
+  }
+
+  await tx.$executeRaw`
+    UPDATE "Item"
+    SET quantity = GREATEST(0, quantity - 1)
+    WHERE id = ${input.itemId}
+      AND "organizationId" = ${input.organizationId}
+      AND "deletedAt" IS NULL
+  `;
 }

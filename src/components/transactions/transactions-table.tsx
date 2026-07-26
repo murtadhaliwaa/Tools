@@ -11,9 +11,11 @@ import { formatDateTime } from "@/lib/format";
 import { ui } from "@/lib/ui";
 import { BusyOverlay } from "@/components/shared/busy-overlay";
 import { LoadingButton } from "@/components/shared/loading-button";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { TransactionTypeBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -51,6 +53,7 @@ export function TransactionsTable({
   const [pending, startTransition] = useTransition();
   const [busyLabel, setBusyLabel] = useState<string>(ui.saving);
   const [editing, setEditing] = useState<TransactionRow | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
 
   function openNotes(row: TransactionRow) {
@@ -70,19 +73,14 @@ export function TransactionsTable({
     });
   }
 
-  function onDelete(id: string) {
-    if (
-      !confirm(
-        "حذف آخر حركة لهذه الأداة؟ لا يمكن التراجع. استخدمه فقط لتصحيح خطأ.",
-      )
-    ) {
-      return;
-    }
+  function onDeleteConfirmed() {
+    if (!deleteId) return;
     setBusyLabel(ui.deleting);
     startTransition(async () => {
-      const result = await deleteTransactionAction(id);
+      const result = await deleteTransactionAction(deleteId);
       if (result.success) toast.success(result.message);
       else toast.error(result.message);
+      setDeleteId(null);
     });
   }
 
@@ -136,15 +134,14 @@ export function TransactionsTable({
                         </Button>
                       ) : null}
                       {canManage ? (
-                        <LoadingButton
+                        <Button
                           size="sm"
                           variant="destructive"
-                          loading={pending}
-                          loadingText={ui.deleting}
-                          onClick={() => onDelete(tx.id)}
+                          disabled={pending}
+                          onClick={() => setDeleteId(tx.id)}
                         >
                           حذف
-                        </LoadingButton>
+                        </Button>
                       ) : null}
                     </TableCell>
                   </TableRow>
@@ -154,6 +151,19 @@ export function TransactionsTable({
           </TableBody>
         </Table>
       </BusyOverlay>
+
+      <ConfirmDialog
+        open={Boolean(deleteId)}
+        onOpenChange={(next) => {
+          if (!next) setDeleteId(null);
+        }}
+        title="حذف الحركة"
+        description="حذف آخر حركة لهذه الأداة؟ لا يمكن التراجع. استخدمه فقط لتصحيح خطأ."
+        confirmLabel="حذف"
+        destructive
+        loading={pending}
+        onConfirm={onDeleteConfirmed}
+      />
 
       <Dialog
         open={!!editing}
@@ -166,13 +176,16 @@ export function TransactionsTable({
             <DialogTitle>تعديل ملاحظات الحركة</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <Textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="ملاحظات (اختياري)"
-              rows={4}
-              disabled={pending}
-            />
+            <div className="space-y-1.5">
+              <Label htmlFor="tx-notes">الملاحظات</Label>
+              <Textarea
+                id="tx-notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={4}
+                disabled={pending}
+              />
+            </div>
             <LoadingButton
               onClick={saveNotes}
               loading={pending}

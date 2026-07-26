@@ -1,6 +1,12 @@
 -- سياسات RLS لطبقة حماية إضافية على مستوى قاعدة البيانات
--- ملاحظة: التطبيق يستخدم Prisma عبر connection string (عادة يتجاوز RLS كـ table owner).
--- تُفعَّل هذه السياسات عند الوصول عبر Supabase client / PostgREST بمفتاح anon.
+--
+-- مهم جداً:
+-- 1) التطبيق يستخدم Prisma عبر DATABASE_URL (غالباً كـ table owner) فيتجاوز RLS.
+--    مصدر الحقيقة للأمان = طبقة التطبيق (requireUser/requireRole + organizationId).
+-- 2) سياسات الكتابة هنا قد تختلف عن صلاحيات التطبيق: أمين العدة (KEEPER)
+--    يستطيع إدارة المواد/المكينات عبر Server Actions — وهذا مقصود للمنتج الحالي.
+--    سياسات item_write/machine_write أدناه أضيق (ADMIN) لحماية PostgREST فقط.
+-- 3) لا تعتمد على هذا الملف وحده لعزل المؤسسات عند استخدام Prisma.
 
 ALTER TABLE "Organization" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Profile" ENABLE ROW LEVEL SECURITY;

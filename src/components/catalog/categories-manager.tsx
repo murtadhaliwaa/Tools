@@ -9,8 +9,10 @@ import {
 } from "@/actions";
 import { BusyOverlay } from "@/components/shared/busy-overlay";
 import { LoadingButton } from "@/components/shared/loading-button";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +38,7 @@ export function CategoriesManager({
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CategoryRow | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [pending, startTransition] = useTransition();
   const [busyLabel, setBusyLabel] = useState<string>(ui.saving);
@@ -67,13 +70,14 @@ export function CategoriesManager({
     });
   }
 
-  function onDelete(id: string) {
-    if (!confirm("هل أنت متأكد من حذف التصنيف؟")) return;
+  function onDeleteConfirmed() {
+    if (!deleteId) return;
     setBusyLabel(ui.deleting);
     startTransition(async () => {
-      const result = await deleteCategoryAction(id);
+      const result = await deleteCategoryAction(deleteId);
       if (result.success) toast.success(result.message);
       else toast.error(result.message);
+      setDeleteId(null);
     });
   }
 
@@ -91,12 +95,15 @@ export function CategoriesManager({
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="اسم التصنيف"
-                disabled={pending}
-              />
+              <div className="space-y-1.5">
+                <Label htmlFor="category-name">اسم التصنيف</Label>
+                <Input
+                  id="category-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={pending}
+                />
+              </div>
               <LoadingButton
                 onClick={onSave}
                 loading={pending}
@@ -110,7 +117,20 @@ export function CategoriesManager({
         </Dialog>
       </div>
 
-      <BusyOverlay busy={pending && !open} label={busyLabel}>
+      <ConfirmDialog
+        open={Boolean(deleteId)}
+        onOpenChange={(next) => {
+          if (!next) setDeleteId(null);
+        }}
+        title="حذف التصنيف"
+        description="هل أنت متأكد من حذف هذا التصنيف؟"
+        confirmLabel="حذف"
+        destructive
+        loading={pending}
+        onConfirm={onDeleteConfirmed}
+      />
+
+      <BusyOverlay busy={pending && !open && !deleteId} label={busyLabel}>
         <Table>
           <TableHeader>
             <TableRow>
@@ -140,15 +160,14 @@ export function CategoriesManager({
                     >
                       تعديل
                     </Button>
-                    <LoadingButton
+                    <Button
                       variant="destructive"
                       size="sm"
-                      loading={pending}
-                      loadingText={ui.deleting}
-                      onClick={() => onDelete(c.id)}
+                      disabled={pending}
+                      onClick={() => setDeleteId(c.id)}
                     >
                       حذف
-                    </LoadingButton>
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))

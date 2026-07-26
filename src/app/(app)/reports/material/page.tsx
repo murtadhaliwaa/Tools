@@ -75,6 +75,12 @@ export default async function MaterialReportPage({
         }
       />
 
+      {report?.truncated ? (
+        <p className="text-sm text-muted-foreground">
+          تم عرض أول {report.limit} حركة فقط. قلّص الفترة الزمنية لعرض الباقي.
+        </p>
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">اختيار المادة والفترة</CardTitle>

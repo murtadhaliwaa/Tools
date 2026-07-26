@@ -79,14 +79,11 @@ export async function updateSession(request: NextRequest) {
 
   supabaseResponse = nextWithUser(request, pathname, user, cookiesToSet);
 
-  const metaRole = user?.app_metadata?.role ?? user?.user_metadata?.role;
-  const role: AppRole =
-    metaRole === "ADMIN" || metaRole === "KEEPER" ? metaRole : null;
-
+  // الدور للبوابة الحدّية من كوكي app_role فقط (يُكتب بعد قراءة DB).
+  // لا نثق بـ user_metadata / app_metadata — الصفحات والأكشنز تفحص DB دائماً.
   const cookieRole = request.cookies.get("app_role")?.value;
   const effectiveRole: AppRole =
-    role ??
-    (cookieRole === "ADMIN" || cookieRole === "KEEPER" ? cookieRole : null);
+    cookieRole === "ADMIN" || cookieRole === "KEEPER" ? cookieRole : null;
 
   return {
     user,

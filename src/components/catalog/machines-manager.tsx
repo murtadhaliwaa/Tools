@@ -9,8 +9,10 @@ import {
 } from "@/actions";
 import { BusyOverlay } from "@/components/shared/busy-overlay";
 import { LoadingButton } from "@/components/shared/loading-button";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -42,6 +44,7 @@ export function MachinesManager({
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MachineRow | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [pending, startTransition] = useTransition();
@@ -77,13 +80,14 @@ export function MachinesManager({
     });
   }
 
-  function onDelete(id: string) {
-    if (!confirm("هل أنت متأكد من حذف المكينة؟")) return;
+  function onDeleteConfirmed() {
+    if (!deleteId) return;
     setBusyLabel(ui.deleting);
     startTransition(async () => {
-      const result = await deleteMachineAction(id);
+      const result = await deleteMachineAction(deleteId);
       if (result.success) toast.success(result.message);
       else toast.error(result.message);
+      setDeleteId(null);
     });
   }
 
@@ -102,18 +106,24 @@ export function MachinesManager({
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-3">
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="اسم / رقم المكينة"
-                  disabled={pending}
-                />
-                <Input
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="الموقع (اختياري)"
-                  disabled={pending}
-                />
+                <div className="space-y-1.5">
+                  <Label htmlFor="machine-name">اسم / رقم المكينة</Label>
+                  <Input
+                    id="machine-name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    disabled={pending}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="machine-location">الموقع (اختياري)</Label>
+                  <Input
+                    id="machine-location"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    disabled={pending}
+                  />
+                </div>
                 <LoadingButton
                   onClick={onSave}
                   loading={pending}
@@ -128,7 +138,20 @@ export function MachinesManager({
         </div>
       ) : null}
 
-      <BusyOverlay busy={pending && !open} label={busyLabel}>
+      <ConfirmDialog
+        open={Boolean(deleteId)}
+        onOpenChange={(next) => {
+          if (!next) setDeleteId(null);
+        }}
+        title="حذف المكينة"
+        description="هل أنت متأكد من حذف هذه المكينة؟"
+        confirmLabel="حذف"
+        destructive
+        loading={pending}
+        onConfirm={onDeleteConfirmed}
+      />
+
+      <BusyOverlay busy={pending && !open && !deleteId} label={busyLabel}>
         <Table>
           <TableHeader>
             <TableRow>
@@ -162,15 +185,14 @@ export function MachinesManager({
                       >
                         تعديل
                       </Button>
-                      <LoadingButton
+                      <Button
                         variant="destructive"
                         size="sm"
-                        loading={pending}
-                        loadingText={ui.deleting}
-                        onClick={() => onDelete(m.id)}
+                        disabled={pending}
+                        onClick={() => setDeleteId(m.id)}
                       >
                         حذف
-                      </LoadingButton>
+                      </Button>
                     </TableCell>
                   ) : null}
                 </TableRow>

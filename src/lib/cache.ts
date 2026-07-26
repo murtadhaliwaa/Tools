@@ -57,8 +57,19 @@ export function getItemFilterOptionsCached(organizationId: string) {
 /** أدوات نموذج الحركة مع الحالة — كاش قصير */
 export function getFormItemsCached(organizationId: string) {
   return unstable_cache(
-    async (orgId: string) => getItemsForTransactionForm(orgId),
+    async (orgId: string) => getItemsForTransactionForm(orgId, { limit: 40 }),
     [`form-items-status`],
+    { revalidate: 30, tags: [CACHE_TAGS.formItems(organizationId)] },
+  )(organizationId);
+}
+
+export function getDashboardStatsCached(organizationId: string) {
+  return unstable_cache(
+    async (orgId: string) => {
+      const { getDashboardStats } = await import("@/services/items");
+      return getDashboardStats(orgId);
+    },
+    [`dashboard-stats`],
     { revalidate: 30, tags: [CACHE_TAGS.formItems(organizationId)] },
   )(organizationId);
 }

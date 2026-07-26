@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { ensureProfile, syncRoleCookie } from "@/lib/auth";
+import { clearRoleCookie, ensureProfile, syncRoleCookie } from "@/lib/auth";
 
 function safeNextPath(raw: string | null): string {
   if (!raw) return "/dashboard";
@@ -30,6 +30,13 @@ export async function GET(request: Request) {
     data.user.email?.split("@")[0] ??
     "مستخدم";
   const profile = await ensureProfile(data.user.id, fullName);
+
+  if (!profile.isActive) {
+    await supabase.auth.signOut();
+    await clearRoleCookie();
+    return NextResponse.redirect(`${origin}/login?error=pending`);
+  }
+
   await syncRoleCookie(profile.role);
 
   return NextResponse.redirect(`${origin}${next}`);

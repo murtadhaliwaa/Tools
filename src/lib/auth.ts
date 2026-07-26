@@ -63,7 +63,8 @@ function getCachedProfile(userId: string) {
 
 /**
  * يضمن وجود Profile مرتبط بالمستخدم بعد تسجيل الدخول/التسجيل.
- * أول مستخدم في النظام يصبح ADMIN ويُربط بالمؤسسة الافتراضية.
+ * وضع شركة واحدة: يربط بالمؤسسة الوحيدة، أو ينشئها مع أول مدير تحت قفل.
+ * يرفض الربط التلقائي عند وجود أكثر من مؤسسة.
  */
 export async function ensureProfile(
   userId: string,
@@ -79,25 +80,44 @@ export async function ensureProfile(
     const stillExists = await tx.profile.findUnique({ where: { id: userId } });
     if (stillExists) return stillExists;
 
-    const profileCount = await tx.profile.count();
-    let org = await tx.organization.findFirst({
+    // قفل عام لمنع سباق أول مدير / إنشاء مؤسسة مكررة
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('tool-tracker-bootstrap'))`;
+
+    const orgs = await tx.organization.findMany({
       orderBy: { createdAt: "asc" },
+      take: 2,
+      select: { id: true },
     });
 
-    if (!org) {
-      org = await tx.organization.create({
-        data: { name: "ورشة الشركة", allowPublicSignup: false },
-      });
+    if (orgs.length > 1) {
+      throw new AuthError(
+        "تعذّر إكمال التسجيل تلقائياً بسبب وجود أكثر من مؤسسة. تواصل مع المدير.",
+      );
     }
 
+    let orgId = orgs[0]?.id;
+    const profileCount = await tx.profile.count();
     const isFirst = profileCount === 0;
+
+    if (!orgId) {
+      if (!isFirst) {
+        throw new AuthError(
+          "لا توجد مؤسسة جاهزة. تواصل مع المدير لإعداد النظام.",
+        );
+      }
+      const created = await tx.organization.create({
+        data: { name: "ورشة الشركة", allowPublicSignup: false },
+      });
+      orgId = created.id;
+    }
+
     return tx.profile.create({
       data: {
         id: userId,
         fullName: fullName || "مستخدم",
         role: isFirst ? "ADMIN" : "KEEPER",
         isActive: isFirst ? true : (options?.activate ?? false),
-        organizationId: org.id,
+        organizationId: orgId,
       },
     });
   });

@@ -4,10 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireUser } from "@/lib/auth";
-import {
-  getDashboardStats,
-  getRecentTransactions,
-} from "@/services/items";
+import { getDashboardStatsCached } from "@/lib/cache";
+import { getRecentTransactions } from "@/services/items";
 import { formatDateTime } from "@/lib/format";
 import { TransactionTypeBadge } from "@/components/shared/status-badge";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
@@ -26,7 +24,7 @@ function StatsSkeleton() {
 }
 
 async function StatsSection({ organizationId }: { organizationId: string }) {
-  const stats = await getDashboardStats(organizationId);
+  const stats = await getDashboardStatsCached(organizationId);
   const cards = [
     { title: "إجمالي الأدوات", value: stats.totalItems, icon: Package },
     { title: "متوفرة", value: stats.available, icon: CheckCircle2 },

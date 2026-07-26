@@ -3,7 +3,7 @@
  * تغطي الحالات الحرجة بدون الحاجة لقاعدة بيانات حية.
  */
 import { describe, expect, it } from "vitest";
-import { deriveItemStatus } from "@/services/item-status";
+import { deriveItemStatus, quantityDeltaOnDelete } from "@/services/item-status";
 import { ItemStatus, TransactionTypeLabel } from "@/types/domain";
 import {
   signupSchema,
@@ -12,6 +12,8 @@ import {
   itemSchema,
   machineSchema,
   categorySchema,
+  exportMachineSchema,
+  exportMonthlySchema,
 } from "@/lib/validations";
 import { toArabicErrorMessage } from "@/lib/errors";
 import { rateLimitSync } from "@/lib/rate-limit";
@@ -162,5 +164,40 @@ describe("rateLimit", () => {
     expect(rateLimitSync(key, 2, 60_000).ok).toBe(true);
     expect(rateLimitSync(key, 2, 60_000).ok).toBe(true);
     expect(rateLimitSync(key, 2, 60_000).ok).toBe(false);
+  });
+});
+
+describe("quantityDeltaOnDelete", () => {
+  it("reverses stock-affecting types only", () => {
+    expect(quantityDeltaOnDelete("ISSUE")).toBe(1);
+    expect(quantityDeltaOnDelete("RETURN_FROM_MACHINE")).toBe(-1);
+    expect(quantityDeltaOnDelete("ADDITION")).toBe(0);
+    expect(quantityDeltaOnDelete("SEND_TO_REPAIR")).toBe(0);
+    expect(quantityDeltaOnDelete("RETURN_FROM_REPAIR")).toBe(0);
+  });
+});
+
+describe("export schemas", () => {
+  it("validates machine export filters", () => {
+    expect(
+      exportMachineSchema.safeParse({ machineId: "m1", from: "2026-01-01" })
+        .success,
+    ).toBe(true);
+    expect(exportMachineSchema.safeParse({ machineId: "" }).success).toBe(
+      false,
+    );
+    expect(
+      exportMachineSchema.safeParse({ machineId: "m1", from: "01-01-2026" })
+        .success,
+    ).toBe(false);
+  });
+
+  it("validates monthly export year/month", () => {
+    expect(
+      exportMonthlySchema.safeParse({ year: 2026, month: 7 }).success,
+    ).toBe(true);
+    expect(
+      exportMonthlySchema.safeParse({ year: 2010, month: 13 }).success,
+    ).toBe(false);
   });
 });

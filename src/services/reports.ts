@@ -4,13 +4,15 @@ import { getItemStatusById } from "@/services/items";
 import { deriveItemStatus } from "@/services/item-status";
 import type { TransactionType } from "@/generated/prisma/client";
 
+export const REPORT_ROW_LIMIT = 2000;
+
 export async function getMachineReport(params: {
   organizationId: string;
   machineId: string;
   from?: Date;
   to?: Date;
 }) {
-  return prisma.transaction.findMany({
+  const rows = await prisma.transaction.findMany({
     where: {
       organizationId: params.organizationId,
       machineId: params.machineId,
@@ -25,7 +27,7 @@ export async function getMachineReport(params: {
         : {}),
     },
     orderBy: { createdAt: "desc" },
-    take: 2000,
+    take: REPORT_ROW_LIMIT,
     select: {
       id: true,
       createdAt: true,
@@ -34,10 +36,23 @@ export async function getMachineReport(params: {
       performedBy: { select: { fullName: true } },
     },
   });
+
+  return {
+    rows,
+    truncated: rows.length >= REPORT_ROW_LIMIT,
+    limit: REPORT_ROW_LIMIT,
+  };
 }
 
 /** أدوات تحت التصليح فقط — استعلام مباشر بدون جلب كل المخزون */
-export async function getRepairStatusReport(organizationId: string) {
+export async function getRepairStatusReport(
+  organizationId: string,
+  options?: { page?: number; pageSize?: number },
+) {
+  const page = Math.max(1, options?.page ?? 1);
+  const pageSize = Math.min(Math.max(options?.pageSize ?? 50, 1), 100);
+  const offset = (page - 1) * pageSize;
+
   const rows = await prisma.$queryRaw<
     Array<{
       id: string;
@@ -52,60 +67,74 @@ export async function getRepairStatusReport(organizationId: string) {
       last_at: Date;
       machine_id: string | null;
       machine_name: string | null;
+      total_count: bigint;
     }>
   >`
-    SELECT
-      i.id,
-      i.name,
-      i.code,
-      i.quantity,
-      i.notes,
-      i."categoryId" AS category_id,
-      c.name AS category_name,
-      i."createdAt" AS created_at,
-      t.type AS last_type,
-      t."createdAt" AS last_at,
-      t."machineId" AS machine_id,
-      m.name AS machine_name
-    FROM "Item" i
-    INNER JOIN "Category" c ON c.id = i."categoryId"
-    INNER JOIN LATERAL (
-      SELECT tr.type, tr."createdAt", tr."machineId"
-      FROM "Transaction" tr
-      WHERE tr."itemId" = i.id
-      ORDER BY tr."createdAt" DESC
-      LIMIT 1
-    ) t ON true
-    LEFT JOIN "Machine" m ON m.id = t."machineId"
-    WHERE i."organizationId" = ${organizationId}
-      AND i."deletedAt" IS NULL
-      AND t.type = 'SEND_TO_REPAIR'
-    ORDER BY t."createdAt" ASC
+    WITH repaired AS (
+      SELECT
+        i.id,
+        i.name,
+        i.code,
+        i.quantity,
+        i.notes,
+        i."categoryId" AS category_id,
+        c.name AS category_name,
+        i."createdAt" AS created_at,
+        t.type AS last_type,
+        t."createdAt" AS last_at,
+        t."machineId" AS machine_id,
+        m.name AS machine_name
+      FROM "Item" i
+      INNER JOIN "Category" c ON c.id = i."categoryId"
+      INNER JOIN LATERAL (
+        SELECT tr.type, tr."createdAt", tr."machineId"
+        FROM "Transaction" tr
+        WHERE tr."itemId" = i.id
+        ORDER BY tr."createdAt" DESC
+        LIMIT 1
+      ) t ON true
+      LEFT JOIN "Machine" m ON m.id = t."machineId"
+      WHERE i."organizationId" = ${organizationId}
+        AND i."deletedAt" IS NULL
+        AND t.type = 'SEND_TO_REPAIR'
+    )
+    SELECT *, COUNT(*) OVER()::bigint AS total_count
+    FROM repaired
+    ORDER BY last_at ASC
+    LIMIT ${pageSize}
+    OFFSET ${offset}
   `;
 
-  return rows.map((row) => {
-    const status = deriveItemStatus(
-      row.last_type as TransactionType,
-      Number(row.quantity ?? 1),
-    );
-    const item: ItemWithStatus & { since: Date } = {
-      id: row.id,
-      name: row.name,
-      code: row.code,
-      quantity: Number(row.quantity ?? 1),
-      notes: row.notes,
-      categoryId: row.category_id,
-      categoryName: row.category_name,
-      createdAt: row.created_at,
-      status,
-      machineId: null,
-      machineName: null,
-      lastTransactionAt: row.last_at,
-      lastTransactionType: row.last_type,
-      since: row.last_at,
-    };
-    return item;
-  });
+  const total = Number(rows[0]?.total_count ?? 0);
+
+  return {
+    rows: rows.map((row) => {
+      const status = deriveItemStatus(
+        row.last_type as TransactionType,
+        Number(row.quantity ?? 1),
+      );
+      const item: ItemWithStatus & { since: Date } = {
+        id: row.id,
+        name: row.name,
+        code: row.code,
+        quantity: Number(row.quantity ?? 1),
+        notes: row.notes,
+        categoryId: row.category_id,
+        categoryName: row.category_name,
+        createdAt: row.created_at,
+        status,
+        machineId: null,
+        machineName: null,
+        lastTransactionAt: row.last_at,
+        lastTransactionType: row.last_type,
+        since: row.last_at,
+      };
+      return item;
+    }),
+    total,
+    page,
+    pageSize,
+  };
 }
 
 export async function getMonthlySummary(params: {
@@ -209,7 +238,7 @@ export async function getMaterialReport(params: {
     prisma.transaction.findMany({
       where,
       orderBy: { createdAt: "desc" },
-      take: 2000,
+      take: REPORT_ROW_LIMIT,
       select: {
         id: true,
         type: true,
@@ -231,7 +260,13 @@ export async function getMaterialReport(params: {
     byType[row.type] = row._count._all;
   }
 
-  return { item, rows, byType };
+  return {
+    item,
+    rows,
+    byType,
+    truncated: rows.length >= REPORT_ROW_LIMIT,
+    limit: REPORT_ROW_LIMIT,
+  };
 }
 
 /** أكثر الأدوات صرفاً (ISSUE) — للرسم البياني */
