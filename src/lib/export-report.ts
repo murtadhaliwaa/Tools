@@ -119,16 +119,17 @@ export async function downloadPdfReport(params: {
 
   const colCount = Math.max(params.headers.length, 1);
   const scale = 2;
-  const padX = 24;
-  const padY = 28;
-  const titleSize = 18;
-  const cellFont = 11;
-  const lineHeight = 15;
-  const cellPadX = 8;
-  const cellPadY = 8;
-  const minRowH = 34;
-  const titleGap = 20;
-  const tableWidth = Math.min(980, 180 + colCount * 150);
+  const padX = 20;
+  const padY = 24;
+  const titleSize = 16;
+  const cellFont = colCount >= 5 ? 10 : 11;
+  const lineHeight = colCount >= 5 ? 14 : 15;
+  const cellPadX = 6;
+  const cellPadY = 7;
+  const minRowH = 32;
+  const titleGap = 16;
+  // عرض مناسب لـ A4 عمودي — يتجنّب صفحة أفقية صغيرة على الموبايل
+  const tableWidth = Math.min(700, 140 + colCount * 110);
 
   // أعمدة أوسع للملاحظات/النصوص الطويلة (آخر عمود بصرياً في RTL = أول فهرس بيانات غالباً «ملاحظات»)
   const weights = params.headers.map((h) => {
@@ -255,11 +256,11 @@ export async function downloadPdfReport(params: {
     y += height;
   });
 
-  const orientation = colCount > 4 ? "landscape" : "portrait";
-  const doc = new jsPDF({ orientation, unit: "pt", format: "a4" });
+  // دائماً عمودي — أوضح على الموبايل والطابعة العادية
+  const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 28;
+  const margin = 22;
   const imgWidth = pageWidth - margin * 2;
   const imgHeight = (canvasH * imgWidth) / canvasW;
   const imgData = canvas.toDataURL("image/png");
