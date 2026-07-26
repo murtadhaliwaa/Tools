@@ -18,6 +18,51 @@ function cellText(value: ExportCell) {
   return value == null ? "" : String(value);
 }
 
+/** لفّ النص داخل عرض العمود بدون قصّ */
+function wrapText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+): string[] {
+  const value = text.trim();
+  if (!value) return [""];
+  if (ctx.measureText(value).width <= maxWidth) return [value];
+
+  const lines: string[] = [];
+  const tokens = value.split(/\s+/);
+  let current = "";
+
+  const pushChunked = (word: string) => {
+    let chunk = "";
+    for (const ch of word) {
+      const next = chunk + ch;
+      if (ctx.measureText(next).width <= maxWidth) {
+        chunk = next;
+      } else {
+        if (chunk) lines.push(chunk);
+        chunk = ch;
+      }
+    }
+    current = chunk;
+  };
+
+  for (const word of tokens) {
+    const test = current ? `${current} ${word}` : word;
+    if (ctx.measureText(test).width <= maxWidth) {
+      current = test;
+      continue;
+    }
+    if (current) lines.push(current);
+    if (ctx.measureText(word).width <= maxWidth) {
+      current = word;
+    } else {
+      pushChunked(word);
+    }
+  }
+  if (current) lines.push(current);
+  return lines.length > 0 ? lines : [""];
+}
+
 export async function downloadExcelReport(params: {
   filename: string;
   sheetName?: string;
@@ -31,16 +76,18 @@ export async function downloadExcelReport(params: {
 
   sheet.addRow(params.headers);
   sheet.getRow(1).font = { bold: true };
+  sheet.getRow(1).alignment = { wrapText: true, vertical: "middle" };
 
   for (const row of params.rows) {
-    sheet.addRow(row.map(cellText));
+    const added = sheet.addRow(row.map(cellText));
+    added.alignment = { wrapText: true, vertical: "middle" };
   }
 
   sheet.columns.forEach((column) => {
     let max = 12;
     column.eachCell?.({ includeEmpty: true }, (cell) => {
       const length = String(cell.value ?? "").length;
-      if (length > max) max = Math.min(length + 2, 40);
+      if (length > max) max = Math.min(length + 2, 60);
     });
     column.width = max;
   });
@@ -75,12 +122,49 @@ export async function downloadPdfReport(params: {
   const padX = 24;
   const padY = 28;
   const titleSize = 18;
-  const cellFont = 12;
-  const rowH = 34;
+  const cellFont = 11;
+  const lineHeight = 15;
+  const cellPadX = 8;
+  const cellPadY = 8;
+  const minRowH = 34;
   const titleGap = 20;
-  const tableWidth = Math.min(900, 160 + colCount * 140);
-  const colW = tableWidth / colCount;
-  const tableHeight = rowH * (params.rows.length + 1);
+  const tableWidth = Math.min(980, 180 + colCount * 150);
+
+  // أعمدة أوسع للملاحظات/النصوص الطويلة (آخر عمود بصرياً في RTL = أول فهرس بيانات غالباً «ملاحظات»)
+  const weights = params.headers.map((h) => {
+    if (h.includes("ملاحظات") || h.includes("ملاحظ")) return 2.4;
+    if (h.includes("تاريخ")) return 1.5;
+    if (h.includes("بواسطة") || h.includes("اسم")) return 1.2;
+    return 1;
+  });
+  const weightSum = weights.reduce((a, b) => a + b, 0);
+  const colWidths = weights.map((w) => (tableWidth * w) / weightSum);
+
+  const measureCtx = document.createElement("canvas").getContext("2d");
+  if (!measureCtx) throw new Error("تعذر إنشاء الرسم");
+  measureCtx.font = `${cellFont}px Tahoma, "Segoe UI", Arial, sans-serif`;
+
+  const headerLines = params.headers.map((header, i) =>
+    wrapText(measureCtx, header, colWidths[i]! - cellPadX * 2),
+  );
+  const bodyLineRows = params.rows.map((row) =>
+    params.headers.map((_, i) =>
+      wrapText(measureCtx, cellText(row[i]), colWidths[i]! - cellPadX * 2),
+    ),
+  );
+
+  const headerRowH = Math.max(
+    minRowH,
+    Math.max(...headerLines.map((l) => l.length)) * lineHeight + cellPadY * 2,
+  );
+  const bodyRowHeights = bodyLineRows.map((cells) =>
+    Math.max(
+      minRowH,
+      Math.max(...cells.map((l) => l.length)) * lineHeight + cellPadY * 2,
+    ),
+  );
+  const tableHeight =
+    headerRowH + bodyRowHeights.reduce((sum, h) => sum + h, 0);
   const canvasW = tableWidth + padX * 2;
   const canvasH = padY * 2 + titleSize + titleGap + tableHeight;
 
@@ -91,7 +175,6 @@ export async function downloadPdfReport(params: {
   if (!rawCtx) throw new Error("تعذر إنشاء الرسم");
   const ctx = rawCtx;
 
-  // حد آمن لارتفاع Canvas في المتصفحات (~32767px)
   const maxCanvasCssHeight = Math.floor(32000 / scale);
   if (canvasH > maxCanvasCssHeight) {
     throw new Error(
@@ -112,41 +195,64 @@ export async function downloadPdfReport(params: {
   const tableTop = padY + titleSize + titleGap;
   const tableLeft = padX;
 
-  function drawCell(
-    text: string,
-    col: number,
-    row: number,
-    header: boolean,
-  ) {
-    const x = tableLeft + col * colW;
-    const y = tableTop + row * rowH;
+  // إزاحة الأعمدة من اليمين (RTL): العمود البصري 0 أقصى اليمين = آخر عمود بيانات أو العكس
+  // نرسم الفهرس visualIndex من اليمين: col 0 = يمين الجدول = headers[0]
+  function colX(visualIndex: number) {
+    let x = tableLeft + tableWidth;
+    for (let i = 0; i <= visualIndex; i++) {
+      x -= colWidths[i]!;
+    }
+    return x;
+  }
 
-    ctx.fillStyle = header ? "#1f1f1f" : row % 2 === 0 ? "#ffffff" : "#f7f7f7";
-    ctx.fillRect(x, y, colW, rowH);
+  function drawCellBox(
+    visualIndex: number,
+    y: number,
+    height: number,
+    lines: string[],
+    header: boolean,
+    zebra: boolean,
+  ) {
+    const x = colX(visualIndex);
+    const width = colWidths[visualIndex]!;
+
+    ctx.fillStyle = header ? "#1f1f1f" : zebra ? "#f7f7f7" : "#ffffff";
+    ctx.fillRect(x, y, width, height);
     ctx.strokeStyle = "#d4d4d4";
     ctx.lineWidth = 1;
-    ctx.strokeRect(x, y, colW, rowH);
+    ctx.strokeRect(x, y, width, height);
 
     ctx.fillStyle = header ? "#ffffff" : "#111111";
     ctx.font = `${header ? "bold " : ""}${cellFont}px Tahoma, "Segoe UI", Arial, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
 
-    const maxChars = Math.max(8, Math.floor(colW / 7));
-    const label =
-      text.length > maxChars ? `${text.slice(0, maxChars - 1)}…` : text;
-    ctx.fillText(label, x + colW / 2, y + rowH / 2);
+    const blockH = lines.length * lineHeight;
+    const startY = y + (height - blockH) / 2 + lineHeight / 2;
+    lines.forEach((line, i) => {
+      ctx.fillText(line, x + width / 2, startY + i * lineHeight);
+    });
   }
 
-  // أعمدة RTL: العمود 0 يمين الجدول
-  params.headers.forEach((header, visualIndex) => {
-    const col = colCount - 1 - visualIndex;
-    drawCell(header, col, 0, true);
+  let y = tableTop;
+  params.headers.forEach((_, visualIndex) => {
+    drawCellBox(visualIndex, y, headerRowH, headerLines[visualIndex]!, true, false);
   });
+  y += headerRowH;
 
-  params.rows.forEach((row, rowIndex) => {
-    params.headers.forEach((_, visualIndex) => {
-      const col = colCount - 1 - visualIndex;
-      drawCell(cellText(row[visualIndex]), col, rowIndex + 1, false);
+  bodyLineRows.forEach((cells, rowIndex) => {
+    const height = bodyRowHeights[rowIndex]!;
+    cells.forEach((lines, visualIndex) => {
+      drawCellBox(
+        visualIndex,
+        y,
+        height,
+        lines,
+        false,
+        rowIndex % 2 === 1,
+      );
     });
+    y += height;
   });
 
   const orientation = colCount > 4 ? "landscape" : "portrait";
