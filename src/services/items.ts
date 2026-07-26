@@ -60,13 +60,13 @@ function mapRow(row: ItemStatusRow): ItemWithStatus {
 
 function statusFilterSql(status?: ItemStatusType) {
   if (status === ItemStatus.ISSUED) {
-    return Prisma.sql`AND COALESCE(t.type, '') <> 'SEND_TO_REPAIR' AND i.quantity <= 0`;
+    return Prisma.sql`AND (t.type IS NULL OR t.type <> 'SEND_TO_REPAIR') AND i.quantity <= 0`;
   }
   if (status === ItemStatus.IN_REPAIR) {
     return Prisma.sql`AND t.type = 'SEND_TO_REPAIR'`;
   }
   if (status === ItemStatus.AVAILABLE) {
-    return Prisma.sql`AND COALESCE(t.type, '') <> 'SEND_TO_REPAIR' AND i.quantity > 0`;
+    return Prisma.sql`AND (t.type IS NULL OR t.type <> 'SEND_TO_REPAIR') AND i.quantity > 0`;
   }
   return Prisma.empty;
 }
@@ -304,11 +304,11 @@ export async function getDashboardStats(organizationId: string) {
       SELECT
         COUNT(*)::bigint AS total_items,
         COUNT(*) FILTER (
-          WHERE COALESCE(l.type, '') <> 'SEND_TO_REPAIR'
+          WHERE (l.type IS NULL OR l.type <> 'SEND_TO_REPAIR')
             AND i.quantity > 0
         )::bigint AS available,
         COUNT(*) FILTER (
-          WHERE COALESCE(l.type, '') <> 'SEND_TO_REPAIR'
+          WHERE (l.type IS NULL OR l.type <> 'SEND_TO_REPAIR')
             AND i.quantity <= 0
         )::bigint AS issued,
         COUNT(*) FILTER (WHERE l.type = 'SEND_TO_REPAIR')::bigint AS in_repair
