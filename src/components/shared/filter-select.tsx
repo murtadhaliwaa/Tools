@@ -41,7 +41,7 @@ export function FilterSelect({
     <div className={cn("space-y-1.5", className)}>
       {label ? <Label className={ui.filterLabel}>{label}</Label> : null}
       <Select
-        value={value || undefined}
+        value={value || null}
         onValueChange={(v) => onValueChange(v ?? "")}
       >
         <SelectTrigger className={cn(ui.field, "w-full", triggerClassName)}>

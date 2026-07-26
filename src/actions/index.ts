@@ -51,7 +51,7 @@ function toActionError(error: unknown): ActionResult {
 async function guardRate(prefix: string, limit = 8) {
   const h = await headers();
   const key = clientKeyFromHeaders(h, prefix);
-  const result = rateLimit(key, limit, 60_000);
+  const result = await rateLimit(key, limit, 60_000);
   if (!result.ok) {
     return {
       success: false as const,
@@ -217,6 +217,9 @@ export async function resetPasswordAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
+  const limited = await guardRate("reset-password", 5);
+  if (limited) return limited;
+
   const parsed = resetPasswordSchema.safeParse({
     password: formData.get("password"),
   });
@@ -311,13 +314,9 @@ export async function deleteCategoryAction(id: string): Promise<ActionResult> {
     });
     if (!row) return { success: false, message: "التصنيف غير موجود" };
 
-    // تحرير قيد التفرد عبر إعادة تسمية عند الحذف الناعم
     await prisma.category.update({
       where: { id },
-      data: {
-        deletedAt: new Date(),
-        name: `${row.name}__deleted__${row.id.slice(-6)}`,
-      },
+      data: { deletedAt: new Date() },
     });
     bustCatalogCache(profile.organizationId);
     revalidatePath("/categories");
@@ -377,10 +376,7 @@ export async function deleteMachineAction(id: string): Promise<ActionResult> {
 
     await prisma.machine.update({
       where: { id },
-      data: {
-        deletedAt: new Date(),
-        name: `${row.name}__deleted__${row.id.slice(-6)}`,
-      },
+      data: { deletedAt: new Date() },
     });
     bustCatalogCache(profile.organizationId);
     revalidatePath("/machines");
@@ -395,12 +391,25 @@ export async function createItemAction(input: unknown): Promise<ActionResult> {
     const { profile } = await requireUser();
     const data = itemSchema.parse(input);
 
+    const category = await prisma.category.findFirst({
+      where: {
+        id: data.categoryId,
+        organizationId: profile.organizationId,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    if (!category) {
+      return { success: false, message: "التصنيف غير موجود" };
+    }
+
     await prisma.$transaction(async (tx) => {
       const item = await tx.item.create({
         data: {
           name: data.name,
           code: data.code || null,
           categoryId: data.categoryId,
+          quantity: data.quantity,
           notes: data.notes || null,
           organizationId: profile.organizationId,
         },
@@ -433,12 +442,26 @@ export async function updateItemAction(
   try {
     const { profile } = await requireUser();
     const data = itemSchema.parse(input);
+
+    const category = await prisma.category.findFirst({
+      where: {
+        id: data.categoryId,
+        organizationId: profile.organizationId,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    if (!category) {
+      return { success: false, message: "التصنيف غير موجود" };
+    }
+
     await prisma.item.updateMany({
       where: { id, organizationId: profile.organizationId, deletedAt: null },
       data: {
         name: data.name,
         code: data.code || null,
         categoryId: data.categoryId,
+        quantity: data.quantity,
         notes: data.notes || null,
       },
     });
@@ -460,11 +483,7 @@ export async function deleteItemAction(id: string): Promise<ActionResult> {
 
     await prisma.item.update({
       where: { id },
-      data: {
-        deletedAt: new Date(),
-        code: row.code ? `DEL-${row.id.slice(-8)}` : null,
-        name: `${row.name}__deleted__${row.id.slice(-6)}`,
-      },
+      data: { deletedAt: new Date() },
     });
     revalidatePath("/items");
     bustItemOptionsCache(profile.organizationId);
@@ -571,15 +590,20 @@ export async function createUserAction(
       };
     }
 
-    await prisma.profile.create({
-      data: {
-        id: authData.user.id,
-        fullName: data.fullName,
-        role: data.role,
-        isActive: true,
-        organizationId: profile.organizationId,
-      },
-    });
+    try {
+      await prisma.profile.create({
+        data: {
+          id: authData.user.id,
+          fullName: data.fullName,
+          role: data.role,
+          isActive: true,
+          organizationId: profile.organizationId,
+        },
+      });
+    } catch (createError) {
+      await admin.auth.admin.deleteUser(authData.user.id);
+      throw createError;
+    }
 
     revalidatePath("/users");
     return { success: true, message: "تم إنشاء الحساب وتفعيله" };
@@ -663,19 +687,20 @@ export async function deleteTransactionAction(
     });
     if (!tx) return { success: false, message: "الحركة غير موجودة" };
 
-    const latest = await prisma.transaction.findFirst({
-      where: { itemId: tx.itemId, organizationId: profile.organizationId },
-      orderBy: { createdAt: "desc" },
-      select: { id: true },
-    });
-    if (latest?.id !== id) {
-      return {
-        success: false,
-        message: "يمكن حذف آخر حركة للأداة فقط للحفاظ على تسلسل السجل",
-      };
-    }
-
     await prisma.$transaction(async (db) => {
+      await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${tx.itemId}))`;
+
+      const latest = await db.transaction.findFirst({
+        where: { itemId: tx.itemId, organizationId: profile.organizationId },
+        orderBy: { createdAt: "desc" },
+        select: { id: true },
+      });
+      if (latest?.id !== id) {
+        throw new Error(
+          "يمكن حذف آخر حركة للأداة فقط للحفاظ على تسلسل السجل",
+        );
+      }
+
       await db.transaction.delete({ where: { id } });
 
       // إن كانت إضافة وحيدة بدون حركات لاحقة — احذف الأداة منطقياً
@@ -684,19 +709,10 @@ export async function deleteTransactionAction(
           where: { itemId: tx.itemId },
         });
         if (remaining === 0) {
-          const item = await db.item.findFirst({
+          await db.item.updateMany({
             where: { id: tx.itemId, deletedAt: null },
+            data: { deletedAt: new Date() },
           });
-          if (item) {
-            await db.item.update({
-              where: { id: item.id },
-              data: {
-                deletedAt: new Date(),
-                code: item.code ? `DEL-${item.id.slice(-8)}` : null,
-                name: `${item.name}__deleted__${item.id.slice(-6)}`,
-              },
-            });
-          }
         }
       }
     });

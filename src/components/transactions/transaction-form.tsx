@@ -32,6 +32,7 @@ type MachineOption = { id: string; name: string };
 
 const TYPE_OPTIONS = [
   { value: "ISSUE", label: "صرف لمكينة" },
+  { value: "RETURN_FROM_MACHINE", label: "إرجاع من مكينة" },
   { value: "ADDITION", label: "إضافة أداة جديدة" },
   { value: "SEND_TO_REPAIR", label: "إخراج للتصليح" },
   { value: "RETURN_FROM_REPAIR", label: "رجوع من التصليح" },
@@ -53,6 +54,7 @@ export function TransactionForm({
   const [categoryId, setCategoryId] = useState("");
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [quantity, setQuantity] = useState("1");
   const [notes, setNotes] = useState("");
   const [pending, startTransition] = useTransition();
 
@@ -60,6 +62,8 @@ export function TransactionForm({
     let list = items;
     if (type === "RETURN_FROM_REPAIR") {
       list = list.filter((i) => i.status === ItemStatus.IN_REPAIR);
+    } else if (type === "RETURN_FROM_MACHINE") {
+      list = list.filter((i) => i.hasOutstandingIssue);
     } else if (type === "ISSUE") {
       list = list.filter((i) => i.status === ItemStatus.AVAILABLE);
     } else if (type === "SEND_TO_REPAIR") {
@@ -104,6 +108,7 @@ export function TransactionForm({
         name,
         categoryId,
         code: code || null,
+        quantity: Number(quantity),
         notes: notes || null,
       };
     } else if (type === "ISSUE") {
@@ -129,6 +134,7 @@ export function TransactionForm({
         setMachineId("");
         setName("");
         setCode("");
+        setQuantity("1");
         setNotes("");
       } else {
         toast.error(result.message ?? "فشل التسجيل");
@@ -199,6 +205,20 @@ export function TransactionForm({
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   dir="ltr"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="quantity">عدد المادة</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  step={1}
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  dir="ltr"
+                  required
                 />
               </div>
             </>

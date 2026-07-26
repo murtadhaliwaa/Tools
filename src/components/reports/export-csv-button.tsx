@@ -1,102 +1,92 @@
 "use client";
 
 import { useState } from "react";
-import { downloadCsv } from "@/lib/format";
+import { toast } from "sonner";
+import {
+  downloadExcelReport,
+  downloadPdfReport,
+  type ExportRow,
+} from "@/lib/export-report";
 import { LoadingButton } from "@/components/shared/loading-button";
-import { Button } from "@/components/ui/button";
 
-type ExportRow = Array<string | number | null | undefined>;
+type ExportFormat = "excel" | "pdf";
 
-async function downloadExcel(
-  filename: string,
-  sheetName: string,
-  headers: string[],
-  rows: ExportRow[],
-) {
-  const ExcelJS = (await import("exceljs")).default;
-  const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet(sheetName);
-
-  sheet.addRow(headers);
-  sheet.getRow(1).font = { bold: true };
-
-  for (const row of rows) {
-    sheet.addRow(row.map((cell) => (cell == null ? "" : cell)));
-  }
-
-  sheet.columns.forEach((column) => {
-    let max = 12;
-    column.eachCell?.({ includeEmpty: true }, (cell) => {
-      const length = String(cell.value ?? "").length;
-      if (length > max) max = Math.min(length + 2, 40);
-    });
-    column.width = max;
-  });
-
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer as ArrayBuffer], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename.endsWith(".xlsx") ? filename : `${filename}.xlsx`;
-  link.click();
-  URL.revokeObjectURL(url);
-}
+type ExportButtonsProps = {
+  filename: string;
+  title?: string;
+  headers: string[];
+  sheetName?: string;
+  /** إن وُجدت تُستخدم مباشرة؛ وإلا يُستدعى getRows عند الضغط */
+  rows?: ExportRow[];
+  /** جلب الصفوف عند التصدير فقط — يقلل حجم RSC */
+  getRows?: () => Promise<ExportRow[]>;
+  enabled?: boolean;
+};
 
 export function ExportButtons({
   filename,
+  title = "تقرير",
   headers,
   rows,
+  getRows,
   sheetName = "التقرير",
-}: {
-  filename: string;
-  headers: string[];
-  rows: ExportRow[];
-  sheetName?: string;
-}) {
-  const [pending, setPending] = useState(false);
+  enabled = true,
+}: ExportButtonsProps) {
+  const [pending, setPending] = useState<ExportFormat | null>(null);
+  const busy = pending !== null;
+  const disabled = !enabled || busy;
+
+  async function exportAs(format: ExportFormat) {
+    try {
+      setPending(format);
+      const data = getRows ? await getRows() : (rows ?? []);
+      if (data.length === 0) {
+        toast.error("لا توجد بيانات للتصدير");
+        return;
+      }
+      if (format === "excel") {
+        await downloadExcelReport({ filename, sheetName, headers, rows: data });
+      } else {
+        await downloadPdfReport({ filename, title, headers, rows: data });
+      }
+      toast.success(format === "excel" ? "تم تصدير Excel" : "تم تصدير PDF");
+    } catch (error) {
+      console.error("export failed", error);
+      toast.error("تعذر التصدير، حاول مرة أخرى");
+    } finally {
+      setPending(null);
+    }
+  }
 
   return (
     <div className="flex flex-wrap gap-2">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => downloadCsv(filename, headers, rows)}
-      >
-        تصدير CSV
-      </Button>
       <LoadingButton
         type="button"
         variant="outline"
         size="sm"
-        loading={pending}
+        loading={pending === "excel"}
         loadingText="جاري Excel..."
-        disabled={rows.length === 0}
-        onClick={async () => {
-          try {
-            setPending(true);
-            await downloadExcel(filename, sheetName, headers, rows);
-          } finally {
-            setPending(false);
-          }
-        }}
+        disabled={disabled}
+        onClick={() => void exportAs("excel")}
       >
-        تصدير Excel
+        Excel
+      </LoadingButton>
+      <LoadingButton
+        type="button"
+        variant="outline"
+        size="sm"
+        loading={pending === "pdf"}
+        loadingText="جاري PDF..."
+        disabled={disabled}
+        onClick={() => void exportAs("pdf")}
+      >
+        PDF
       </LoadingButton>
     </div>
   );
 }
 
-/** للتوافق مع الاستيرادات القديمة */
-export function ExportCsvButton(props: {
-  filename: string;
-  headers: string[];
-  rows: ExportRow[];
-  label?: string;
-  sheetName?: string;
-}) {
+/** توافق مع الاستيرادات القديمة */
+export function ExportCsvButton(props: ExportButtonsProps & { label?: string }) {
   return <ExportButtons {...props} />;
 }

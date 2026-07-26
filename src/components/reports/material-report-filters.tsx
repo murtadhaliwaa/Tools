@@ -7,33 +7,37 @@ import { LoadingButton } from "@/components/shared/loading-button";
 import { useFilterNavigation } from "@/hooks/use-filter-navigation";
 import { ui } from "@/lib/ui";
 
-type Option = { id: string; name: string };
+type Option = { id: string; name: string; code?: string | null };
 
-export function MachineReportFilters({
-  machines,
+export function MaterialReportFilters({
+  items,
   initial,
 }: {
-  machines: Option[];
-  initial: { machineId?: string; from?: string; to?: string };
+  items: Option[];
+  initial: { itemId?: string; from?: string; to?: string };
 }) {
-  const { pending, navigate } = useFilterNavigation("/reports/machine");
-  const [machineId, setMachineId] = useState(initial.machineId ?? "");
+  const { pending, navigate } = useFilterNavigation("/reports/material");
+  const [itemId, setItemId] = useState(initial.itemId ?? "");
   const [from, setFrom] = useState(initial.from ?? "");
   const [to, setTo] = useState(initial.to ?? "");
 
-  const machineOptions = useMemo(
-    () => machines.map((m) => ({ value: m.id, label: m.name })),
-    [machines],
+  const options = useMemo(
+    () =>
+      items.map((i) => ({
+        value: i.id,
+        label: i.code ? `${i.name} (${i.code})` : i.name,
+      })),
+    [items],
   );
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <FilterSelect
-        label="المكينة"
-        value={machineId}
-        onValueChange={setMachineId}
-        options={machineOptions}
-        placeholder="اختر مكينة"
+        label="المادة"
+        value={itemId}
+        onValueChange={setItemId}
+        options={options}
+        placeholder="اختر مادة"
       />
       <DateField
         label="من تاريخ"
@@ -46,12 +50,12 @@ export function MachineReportFilters({
         <LoadingButton
           type="button"
           onClick={() => {
-            if (!machineId) return;
-            navigate({ machineId, from, to });
+            if (!itemId) return;
+            navigate({ itemId, from, to });
           }}
           loading={pending}
           loadingText={ui.loading}
-          disabled={!machineId}
+          disabled={!itemId}
           className="h-9 w-full"
         >
           عرض التقرير

@@ -1,11 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import { FilterSelect } from "@/components/shared/filter-select";
 import { LoadingButton } from "@/components/shared/loading-button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { useFilterNavigation } from "@/hooks/use-filter-navigation";
 import { ui } from "@/lib/ui";
 
 const MONTH_LABELS = [
@@ -30,8 +30,7 @@ export function MonthlyReportFilters({
   initialYear: number;
   initialMonth: number;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const { pending, navigate } = useFilterNavigation("/reports/monthly");
   const [year, setYear] = useState(String(initialYear));
   const [month, setMonth] = useState(String(initialMonth));
 
@@ -43,15 +42,6 @@ export function MonthlyReportFilters({
       })),
     [],
   );
-
-  function apply() {
-    const q = new URLSearchParams();
-    q.set("year", year);
-    q.set("month", month);
-    startTransition(() => {
-      router.push(`/reports/monthly?${q.toString()}`);
-    });
-  }
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -78,7 +68,7 @@ export function MonthlyReportFilters({
       />
       <LoadingButton
         type="button"
-        onClick={apply}
+        onClick={() => navigate({ year, month })}
         loading={pending}
         loadingText={ui.loading}
         className="h-9"

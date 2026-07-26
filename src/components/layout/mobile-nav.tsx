@@ -36,16 +36,12 @@ export function MobileNav({
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur md:hidden">
       <div className="flex h-14 items-center justify-between px-4">
         <div className="flex items-center gap-2">
-          <BrandMark size={28} />
-          <span className="font-semibold">تتبع الأدوات</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger
               className={cn(
                 "inline-flex size-8 items-center justify-center rounded-lg border",
               )}
+              aria-label="فتح القائمة"
             >
               <Menu className="size-4" />
             </SheetTrigger>
@@ -90,6 +86,11 @@ export function MobileNav({
               </div>
             </SheetContent>
           </Sheet>
+          <ThemeToggle />
+        </div>
+        <div className="flex items-center gap-2">
+          <BrandMark size={28} />
+          <span className="font-semibold">تتبع الأدوات</span>
         </div>
       </div>
     </header>

@@ -34,8 +34,14 @@ export function NavProgress() {
   }
 
   useEffect(() => {
-    stop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (timer.current) clearInterval(timer.current);
+    timer.current = null;
+    setWidth(100);
+    const t = window.setTimeout(() => {
+      setVisible(false);
+      setWidth(0);
+    }, 180);
+    return () => window.clearTimeout(t);
   }, [pathname, searchParams]);
 
   useEffect(() => {

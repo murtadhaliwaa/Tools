@@ -1,12 +1,10 @@
-import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth";
+import { requireAdminPage } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { CategoriesManager } from "@/components/catalog/categories-manager";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 
 export default async function CategoriesPage() {
-  const { profile } = await requireUser();
-  if (profile.role !== "ADMIN") redirect("/dashboard");
+  const { profile } = await requireAdminPage();
 
   const categories = await prisma.category.findMany({
     where: { organizationId: profile.organizationId, deletedAt: null },

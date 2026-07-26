@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { ItemWithStatus } from "@/services/items";
+import { getItemStatusById } from "@/services/items";
 import { deriveItemStatus } from "@/services/item-status";
 import type { TransactionType } from "@/generated/prisma/client";
 
@@ -42,6 +43,7 @@ export async function getRepairStatusReport(organizationId: string) {
       id: string;
       name: string;
       code: string | null;
+      quantity: number;
       notes: string | null;
       category_id: string;
       category_name: string;
@@ -56,6 +58,7 @@ export async function getRepairStatusReport(organizationId: string) {
       i.id,
       i.name,
       i.code,
+      i.quantity,
       i.notes,
       i."categoryId" AS category_id,
       c.name AS category_name,
@@ -81,11 +84,15 @@ export async function getRepairStatusReport(organizationId: string) {
   `;
 
   return rows.map((row) => {
-    const status = deriveItemStatus(row.last_type as TransactionType);
+    const status = deriveItemStatus(
+      row.last_type as TransactionType,
+      Number(row.quantity ?? 1),
+    );
     const item: ItemWithStatus & { since: Date } = {
       id: row.id,
       name: row.name,
       code: row.code,
+      quantity: Number(row.quantity ?? 1),
       notes: row.notes,
       categoryId: row.category_id,
       categoryName: row.category_name,
@@ -170,6 +177,61 @@ export async function getItemTimeline(params: {
       performedBy: { select: { fullName: true } },
     },
   });
+}
+
+/** تقرير مادة معينة: الحالة الحالية + الحركات خلال فترة */
+export async function getMaterialReport(params: {
+  organizationId: string;
+  itemId: string;
+  from?: Date;
+  to?: Date;
+}) {
+  const item = await getItemStatusById(params.itemId, params.organizationId);
+  if (!item) return null;
+
+  const dateFilter =
+    params.from || params.to
+      ? {
+          createdAt: {
+            ...(params.from ? { gte: params.from } : {}),
+            ...(params.to ? { lte: params.to } : {}),
+          },
+        }
+      : {};
+
+  const where = {
+    organizationId: params.organizationId,
+    itemId: params.itemId,
+    ...dateFilter,
+  };
+
+  const [rows, byTypeRows] = await Promise.all([
+    prisma.transaction.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: 2000,
+      select: {
+        id: true,
+        type: true,
+        notes: true,
+        createdAt: true,
+        machine: { select: { name: true } },
+        performedBy: { select: { fullName: true } },
+      },
+    }),
+    prisma.transaction.groupBy({
+      by: ["type"],
+      where,
+      _count: { _all: true },
+    }),
+  ]);
+
+  const byType: Record<string, number> = {};
+  for (const row of byTypeRows) {
+    byType[row.type] = row._count._all;
+  }
+
+  return { item, rows, byType };
 }
 
 /** أكثر الأدوات صرفاً (ISSUE) — للرسم البياني */

@@ -35,6 +35,7 @@ export async function createTransaction(
           name: data.name,
           code: data.code || null,
           categoryId: data.categoryId,
+          quantity: data.quantity,
         },
       });
 
@@ -52,7 +53,6 @@ export async function createTransaction(
     });
   }
 
-  // ISSUE / SEND_TO_REPAIR / RETURN_FROM_REPAIR مع قفل استشاري لمنع السباق
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${data.itemId}))`;
 
@@ -62,7 +62,7 @@ export async function createTransaction(
         organizationId,
         deletedAt: null,
       },
-      select: { id: true },
+      select: { id: true, quantity: true },
     });
 
     if (!item) {
@@ -75,11 +75,17 @@ export async function createTransaction(
       select: { type: true },
     });
 
-    const status = deriveItemStatus(last?.type as TransactionType | null);
+    const status = deriveItemStatus(
+      last?.type as TransactionType | null,
+      item.quantity,
+    );
 
     if (data.type === "ISSUE") {
-      if (status !== ItemStatus.AVAILABLE) {
-        throw new Error("لا يمكن صرف الأداة إلا إذا كانت متوفرة");
+      if (status === ItemStatus.IN_REPAIR) {
+        throw new Error("لا يمكن صرف أداة تحت التصليح");
+      }
+      if (item.quantity < 1) {
+        throw new Error("لا يوجد رصيد متاح لهذه المادة");
       }
 
       const machine = await tx.machine.findFirst({
@@ -94,12 +100,54 @@ export async function createTransaction(
         throw new Error("المكينة غير موجودة");
       }
 
+      await tx.item.update({
+        where: { id: item.id },
+        data: { quantity: { decrement: 1 } },
+      });
+
       return tx.transaction.create({
         data: {
           organizationId,
           type: "ISSUE",
           itemId: data.itemId,
           machineId: data.machineId,
+          notes: data.notes || null,
+          performedById: profile.id,
+        },
+      });
+    }
+
+    if (data.type === "RETURN_FROM_MACHINE") {
+      const issuedNet = await tx.transaction.groupBy({
+        by: ["type"],
+        where: {
+          itemId: data.itemId,
+          type: { in: ["ISSUE", "RETURN_FROM_MACHINE"] },
+        },
+        _count: { _all: true },
+      });
+      const issueCount =
+        issuedNet.find((r) => r.type === "ISSUE")?._count._all ?? 0;
+      const returnCount =
+        issuedNet.find((r) => r.type === "RETURN_FROM_MACHINE")?._count
+          ._all ?? 0;
+      if (issueCount <= returnCount) {
+        throw new Error("لا توجد كميات مصروفة لإرجاعها");
+      }
+      if (status === ItemStatus.IN_REPAIR) {
+        throw new Error("لا يمكن الإرجاع أثناء وجود الأداة تحت التصليح");
+      }
+
+      await tx.item.update({
+        where: { id: item.id },
+        data: { quantity: { increment: 1 } },
+      });
+
+      return tx.transaction.create({
+        data: {
+          organizationId,
+          type: "RETURN_FROM_MACHINE",
+          itemId: data.itemId,
           notes: data.notes || null,
           performedById: profile.id,
         },
@@ -138,7 +186,6 @@ export async function createTransaction(
   });
 }
 
-/** يُستخدم خارج المعاملة عند الحاجة للتحقق السريع فقط */
 export async function assertItemAccessible(
   itemId: string,
   organizationId: string,
@@ -147,4 +194,3 @@ export async function assertItemAccessible(
   if (!current) throw new Error("الأداة غير موجودة");
   return current;
 }
-

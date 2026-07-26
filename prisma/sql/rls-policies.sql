@@ -48,6 +48,41 @@ CREATE POLICY profile_update_self ON "Profile"
   USING (id = auth.uid())
   WITH CHECK (id = auth.uid());
 
+-- يمنع المستخدم من تعديل دوره أو تفعيله أو نقل مؤسسته عبر PostgREST
+CREATE OR REPLACE FUNCTION public.prevent_profile_privilege_escalation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NEW.role IS DISTINCT FROM OLD.role
+     OR NEW."isActive" IS DISTINCT FROM OLD."isActive"
+     OR NEW."organizationId" IS DISTINCT FROM OLD."organizationId"
+     OR NEW.id IS DISTINCT FROM OLD.id THEN
+    IF public.current_profile_role() IS DISTINCT FROM 'ADMIN'
+       OR NEW."organizationId" IS DISTINCT FROM public.current_profile_org_id() THEN
+      RAISE EXCEPTION 'غير مسموح بتعديل صلاحيات الملف الشخصي';
+    END IF;
+    -- المدير يقدر يعدّل الآخرين في مؤسسته فقط (ليس تصعيد نفسه عبر anon بدون مسار آمن)
+    IF NEW.id = auth.uid() AND (
+      NEW.role IS DISTINCT FROM OLD.role
+      OR NEW."isActive" IS DISTINCT FROM OLD."isActive"
+      OR NEW."organizationId" IS DISTINCT FROM OLD."organizationId"
+    ) THEN
+      RAISE EXCEPTION 'غير مسموح بتعديل صلاحياتك عبر واجهة قاعدة البيانات';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_prevent_profile_privilege_escalation ON "Profile";
+CREATE TRIGGER trg_prevent_profile_privilege_escalation
+  BEFORE UPDATE ON "Profile"
+  FOR EACH ROW
+  EXECUTE FUNCTION public.prevent_profile_privilege_escalation();
+
 -- Organization
 DROP POLICY IF EXISTS org_select ON "Organization";
 CREATE POLICY org_select ON "Organization"

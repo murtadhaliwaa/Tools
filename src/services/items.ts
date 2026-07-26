@@ -7,6 +7,7 @@ export type ItemWithStatus = {
   id: string;
   name: string;
   code: string | null;
+  quantity: number;
   notes: string | null;
   categoryId: string;
   categoryName: string;
@@ -22,6 +23,7 @@ type ItemStatusRow = {
   id: string;
   name: string;
   code: string | null;
+  quantity: number;
   notes: string | null;
   category_id: string;
   category_name: string;
@@ -34,11 +36,16 @@ type ItemStatusRow = {
 };
 
 function mapRow(row: ItemStatusRow): ItemWithStatus {
-  const derived = deriveItemStatus(row.last_type as TransactionType | null);
+  const quantity = Number(row.quantity ?? 1);
+  const derived = deriveItemStatus(
+    row.last_type as TransactionType | null,
+    quantity,
+  );
   return {
     id: row.id,
     name: row.name,
     code: row.code,
+    quantity,
     notes: row.notes,
     categoryId: row.category_id,
     categoryName: row.category_name,
@@ -53,13 +60,13 @@ function mapRow(row: ItemStatusRow): ItemWithStatus {
 
 function statusFilterSql(status?: ItemStatusType) {
   if (status === ItemStatus.ISSUED) {
-    return Prisma.sql`AND t.type = 'ISSUE'`;
+    return Prisma.sql`AND COALESCE(t.type, '') <> 'SEND_TO_REPAIR' AND i.quantity <= 0`;
   }
   if (status === ItemStatus.IN_REPAIR) {
     return Prisma.sql`AND t.type = 'SEND_TO_REPAIR'`;
   }
   if (status === ItemStatus.AVAILABLE) {
-    return Prisma.sql`AND (t.type IS NULL OR t.type IN ('ADDITION', 'RETURN_FROM_REPAIR'))`;
+    return Prisma.sql`AND COALESCE(t.type, '') <> 'SEND_TO_REPAIR' AND i.quantity > 0`;
   }
   return Prisma.empty;
 }
@@ -115,6 +122,7 @@ export async function listItemsWithStatus(params: ItemsListParams): Promise<{
       i.id,
       i.name,
       i.code,
+      i.quantity,
       i.notes,
       i."categoryId" AS category_id,
       c.name AS category_name,
@@ -166,6 +174,8 @@ export type TransactionFormItem = {
   categoryName: string;
   status: ItemStatusType;
   machineName: string | null;
+  /** هل توجد كميات مصروفة لم تُرجع بعد */
+  hasOutstandingIssue: boolean;
 };
 
 export async function getItemsForTransactionForm(
@@ -176,18 +186,27 @@ export async function getItemsForTransactionForm(
       id: string;
       name: string;
       code: string | null;
+      quantity: number;
       category_name: string;
       last_type: string | null;
       machine_name: string | null;
+      outstanding: bigint;
     }>
   >`
     SELECT
       i.id,
       i.name,
       i.code,
+      i.quantity,
       c.name AS category_name,
       t.type AS last_type,
-      m.name AS machine_name
+      m.name AS machine_name,
+      (
+        SELECT COUNT(*) FILTER (WHERE tr.type = 'ISSUE')
+             - COUNT(*) FILTER (WHERE tr.type = 'RETURN_FROM_MACHINE')
+        FROM "Transaction" tr
+        WHERE tr."itemId" = i.id
+      )::bigint AS outstanding
     FROM "Item" i
     INNER JOIN "Category" c ON c.id = i."categoryId"
     LEFT JOIN LATERAL (
@@ -205,7 +224,11 @@ export async function getItemsForTransactionForm(
   `;
 
   return rows.map((row) => {
-    const status = deriveItemStatus(row.last_type as TransactionType | null);
+    const quantity = Number(row.quantity ?? 1);
+    const status = deriveItemStatus(
+      row.last_type as TransactionType | null,
+      quantity,
+    );
     return {
       id: row.id,
       name: row.name,
@@ -213,6 +236,7 @@ export async function getItemsForTransactionForm(
       categoryName: row.category_name,
       status,
       machineName: status === ItemStatus.ISSUED ? row.machine_name : null,
+      hasOutstandingIssue: Number(row.outstanding ?? 0) > 0,
     };
   });
 }
@@ -227,6 +251,7 @@ export async function getItemStatusById(
       i.id,
       i.name,
       i.code,
+      i.quantity,
       i.notes,
       i."categoryId" AS category_id,
       c.name AS category_name,
@@ -279,10 +304,13 @@ export async function getDashboardStats(organizationId: string) {
       SELECT
         COUNT(*)::bigint AS total_items,
         COUNT(*) FILTER (
-          WHERE l.type IS NULL
-             OR l.type IN ('ADDITION', 'RETURN_FROM_REPAIR')
+          WHERE COALESCE(l.type, '') <> 'SEND_TO_REPAIR'
+            AND i.quantity > 0
         )::bigint AS available,
-        COUNT(*) FILTER (WHERE l.type = 'ISSUE')::bigint AS issued,
+        COUNT(*) FILTER (
+          WHERE COALESCE(l.type, '') <> 'SEND_TO_REPAIR'
+            AND i.quantity <= 0
+        )::bigint AS issued,
         COUNT(*) FILTER (WHERE l.type = 'SEND_TO_REPAIR')::bigint AS in_repair
       FROM "Item" i
       LEFT JOIN latest l ON l."itemId" = i.id

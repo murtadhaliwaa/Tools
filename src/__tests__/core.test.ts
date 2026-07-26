@@ -14,15 +14,17 @@ import {
   categorySchema,
 } from "@/lib/validations";
 import { toArabicErrorMessage } from "@/lib/errors";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimitSync } from "@/lib/rate-limit";
 
 describe("deriveItemStatus", () => {
-  it("maps transaction types to statuses", () => {
-    expect(deriveItemStatus("ADDITION")).toBe(ItemStatus.AVAILABLE);
-    expect(deriveItemStatus("ISSUE")).toBe(ItemStatus.ISSUED);
-    expect(deriveItemStatus("SEND_TO_REPAIR")).toBe(ItemStatus.IN_REPAIR);
-    expect(deriveItemStatus("RETURN_FROM_REPAIR")).toBe(ItemStatus.AVAILABLE);
-    expect(deriveItemStatus(null)).toBe(ItemStatus.AVAILABLE);
+  it("maps transaction types to statuses with quantity", () => {
+    expect(deriveItemStatus("ADDITION", 1)).toBe(ItemStatus.AVAILABLE);
+    expect(deriveItemStatus("ISSUE", 0)).toBe(ItemStatus.ISSUED);
+    expect(deriveItemStatus("ISSUE", 3)).toBe(ItemStatus.AVAILABLE);
+    expect(deriveItemStatus("RETURN_FROM_MACHINE", 1)).toBe(ItemStatus.AVAILABLE);
+    expect(deriveItemStatus("SEND_TO_REPAIR", 5)).toBe(ItemStatus.IN_REPAIR);
+    expect(deriveItemStatus("RETURN_FROM_REPAIR", 1)).toBe(ItemStatus.AVAILABLE);
+    expect(deriveItemStatus(null, 1)).toBe(ItemStatus.AVAILABLE);
   });
 });
 
@@ -30,6 +32,7 @@ describe("TransactionTypeLabel", () => {
   it("covers all transaction types in Arabic", () => {
     expect(TransactionTypeLabel.ADDITION).toBeTruthy();
     expect(TransactionTypeLabel.ISSUE).toBeTruthy();
+    expect(TransactionTypeLabel.RETURN_FROM_MACHINE).toBeTruthy();
     expect(TransactionTypeLabel.SEND_TO_REPAIR).toBeTruthy();
     expect(TransactionTypeLabel.RETURN_FROM_REPAIR).toBeTruthy();
   });
@@ -100,6 +103,20 @@ describe("catalog schemas", () => {
         notes: null,
       }).success,
     ).toBe(true);
+    expect(
+      itemSchema.safeParse({
+        name: "مفك",
+        categoryId: "cat1",
+        quantity: 5,
+      }).success,
+    ).toBe(true);
+    expect(
+      itemSchema.safeParse({
+        name: "مفك",
+        categoryId: "cat1",
+        quantity: -1,
+      }).success,
+    ).toBe(false);
   });
 });
 
@@ -142,8 +159,8 @@ describe("toArabicErrorMessage", () => {
 describe("rateLimit", () => {
   it("blocks after limit", () => {
     const key = `test-${Date.now()}`;
-    expect(rateLimit(key, 2, 60_000).ok).toBe(true);
-    expect(rateLimit(key, 2, 60_000).ok).toBe(true);
-    expect(rateLimit(key, 2, 60_000).ok).toBe(false);
+    expect(rateLimitSync(key, 2, 60_000).ok).toBe(true);
+    expect(rateLimitSync(key, 2, 60_000).ok).toBe(true);
+    expect(rateLimitSync(key, 2, 60_000).ok).toBe(false);
   });
 });

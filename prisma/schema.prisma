@@ -21,6 +21,7 @@ enum Role {
 enum TransactionType {
   ADDITION // إضافة أداة جديدة (تصبح متوفرة)
   ISSUE // صرف أداة إلى مكينة
+  RETURN_FROM_MACHINE // إرجاع من المكينة (تصبح متوفرة)
   SEND_TO_REPAIR // إخراج للتصليح
   RETURN_FROM_REPAIR // رجوع من التصليح (تصبح متوفرة)
 }
@@ -76,7 +77,7 @@ model Category {
 
   items Item[]
 
-  @@unique([organizationId, name])
+  @@index([organizationId, name])
   @@index([organizationId, deletedAt])
 }
 
@@ -87,6 +88,8 @@ model Item {
   name           String
   /// رمز اختياري للتمييز (مثل رقم تسلسلي داخلي). null مسموح ومتكرر في Postgres unique.
   code           String?
+  /// عدد المادة / الكمية لهذا الصنف (حقل وصفي قابل للتعديل يدوياً)
+  quantity       Int           @default(1)
   categoryId     String
   category       Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   notes          String?
@@ -96,7 +99,8 @@ model Item {
 
   transactions Transaction[]
 
-  @@unique([organizationId, code])
+  /// التفرد النشط عبر فهرس جزئي في prisma/sql/performance-indexes.sql
+  @@index([organizationId, code])
   @@index([organizationId, deletedAt])
   @@index([organizationId, categoryId, deletedAt])
   @@index([organizationId, name])
@@ -115,7 +119,8 @@ model Machine {
 
   transactions Transaction[]
 
-  @@unique([organizationId, name])
+  /// التفرد النشط عبر فهرس جزئي في prisma/sql/performance-indexes.sql
+  @@index([organizationId, name])
   @@index([organizationId, deletedAt])
 }
 

@@ -2,10 +2,10 @@ import { requireUser } from "@/lib/auth";
 import { getItemFilterOptionsCached } from "@/lib/cache";
 import { getItemTimeline } from "@/services/reports";
 import { formatDateTime } from "@/lib/format";
-import { TransactionTypeLabel } from "@/types/domain";
-import { ExportCsvButton } from "@/components/reports/export-csv-button";
+import { ItemTimelineExport } from "@/components/reports/report-export-buttons";
 import { TransactionTypeBadge } from "@/components/shared/status-badge";
 import { ItemReportFilters } from "@/components/reports/item-report-filters";
+import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -35,28 +35,22 @@ export default async function ItemTimelinePage({
   const itemName = items.find((i) => i.id === itemId)?.name ?? "";
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">سجل أداة</h1>
-          <p className="text-sm text-muted-foreground">
-            الخط الزمني الكامل لحركات الأداة
-          </p>
-        </div>
-        {timeline.length > 0 ? (
-          <ExportCsvButton
-            filename={`item-timeline-${itemName}`}
-            headers={["النوع", "المكينة", "بواسطة", "التاريخ", "ملاحظات"]}
-            rows={timeline.map((t) => [
-              TransactionTypeLabel[t.type],
-              t.machine?.name,
-              t.performedBy.fullName,
-              formatDateTime(t.createdAt),
-              t.notes,
-            ])}
-          />
-        ) : null}
-      </div>
+    <PageShell>
+      <PageHeader
+        title="سجل أداة"
+        description="الخط الزمني الكامل لحركات الأداة"
+        actions={
+          itemId ? (
+            <ItemTimelineExport
+              filename={`item-timeline-${itemName || "item"}`}
+              title={`سجل أداة — ${itemName}`}
+              sheetName="سجل"
+              enabled={timeline.length > 0}
+              itemId={itemId}
+            />
+          ) : null
+        }
+      />
 
       <Card>
         <CardHeader>
@@ -99,6 +93,6 @@ export default async function ItemTimelinePage({
           )}
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   );
 }

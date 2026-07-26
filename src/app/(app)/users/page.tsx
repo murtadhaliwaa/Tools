@@ -1,12 +1,10 @@
-import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth";
+import { requireAdminPage } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { UsersManager } from "@/components/users/users-manager";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 
 export default async function UsersPage() {
-  const { profile } = await requireUser();
-  if (profile.role !== "ADMIN") redirect("/dashboard");
+  const { profile } = await requireAdminPage();
 
   const users = await prisma.profile.findMany({
     where: { organizationId: profile.organizationId },

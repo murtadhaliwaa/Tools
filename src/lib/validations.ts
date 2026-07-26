@@ -40,6 +40,12 @@ export const itemSchema = z.object({
   name: z.string().min(1, "اسم الأداة مطلوب").max(150),
   code: z.string().max(50).optional().nullable(),
   categoryId: z.string().min(1, "التصنيف مطلوب"),
+  quantity: z.coerce
+    .number({ error: "عدد المادة غير صالح" })
+    .int("عدد المادة يجب أن يكون عدداً صحيحاً")
+    .min(0, "عدد المادة لا يمكن أن يكون سالباً")
+    .max(1_000_000, "عدد المادة كبير جداً")
+    .default(1),
   notes: z.string().max(500).optional().nullable(),
 });
 
@@ -72,6 +78,7 @@ export const transactionBaseSchema = z.object({
   type: z.enum([
     "ADDITION",
     "ISSUE",
+    "RETURN_FROM_MACHINE",
     "SEND_TO_REPAIR",
     "RETURN_FROM_REPAIR",
   ]),
@@ -83,12 +90,23 @@ export const additionSchema = transactionBaseSchema.extend({
   name: z.string().min(1, "اسم الأداة مطلوب"),
   categoryId: z.string().min(1, "التصنيف مطلوب"),
   code: z.string().max(50).optional().nullable(),
+  quantity: z.coerce
+    .number({ error: "عدد المادة غير صالح" })
+    .int("عدد المادة يجب أن يكون عدداً صحيحاً")
+    .min(0, "عدد المادة لا يمكن أن يكون سالباً")
+    .max(1_000_000, "عدد المادة كبير جداً")
+    .default(1),
 });
 
 export const issueSchema = transactionBaseSchema.extend({
   type: z.literal("ISSUE"),
   itemId: z.string().min(1, "الأداة مطلوبة"),
   machineId: z.string().min(1, "المكينة مطلوبة"),
+});
+
+export const returnFromMachineSchema = transactionBaseSchema.extend({
+  type: z.literal("RETURN_FROM_MACHINE"),
+  itemId: z.string().min(1, "الأداة مطلوبة"),
 });
 
 export const repairSchema = transactionBaseSchema.extend({
@@ -99,6 +117,7 @@ export const repairSchema = transactionBaseSchema.extend({
 export const createTransactionSchema = z.discriminatedUnion("type", [
   additionSchema,
   issueSchema,
+  returnFromMachineSchema,
   repairSchema,
 ]);
 

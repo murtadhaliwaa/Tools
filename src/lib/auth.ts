@@ -72,7 +72,6 @@ export async function ensureProfile(
 ): Promise<Profile> {
   const existing = await getCachedProfile(userId);
   if (existing) {
-    await syncRoleCookie(existing.role);
     return existing;
   }
 

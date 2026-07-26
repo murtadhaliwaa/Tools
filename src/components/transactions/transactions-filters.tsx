@@ -1,11 +1,12 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import { DateField } from "@/components/shared/date-field";
 import { FilterSelect } from "@/components/shared/filter-select";
 import { LoadingButton } from "@/components/shared/loading-button";
+import { useFilterNavigation } from "@/hooks/use-filter-navigation";
 import { TransactionTypeLabel } from "@/types/domain";
+import { ui } from "@/lib/ui";
 
 type Option = { id: string; name: string };
 
@@ -24,8 +25,7 @@ export function TransactionsFilters({
     to?: string;
   };
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const { pending, navigate } = useFilterNavigation("/transactions");
   const [type, setType] = useState(initial.type || "all");
   const [itemId, setItemId] = useState(initial.itemId || "all");
   const [machineId, setMachineId] = useState(initial.machineId || "all");
@@ -58,19 +58,6 @@ export function TransactionsFilters({
     ],
     [machines],
   );
-
-  function apply() {
-    const q = new URLSearchParams();
-    q.set("page", "1");
-    if (type !== "all") q.set("type", type);
-    if (itemId !== "all") q.set("itemId", itemId);
-    if (machineId !== "all") q.set("machineId", machineId);
-    if (from) q.set("from", from);
-    if (to) q.set("to", to);
-    startTransition(() => {
-      router.push(`/transactions?${q.toString()}`);
-    });
-  }
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -105,12 +92,21 @@ export function TransactionsFilters({
       <div className="flex items-end">
         <LoadingButton
           type="button"
-          onClick={apply}
+          onClick={() =>
+            navigate({
+              page: "1",
+              type: type !== "all" ? type : undefined,
+              itemId: itemId !== "all" ? itemId : undefined,
+              machineId: machineId !== "all" ? machineId : undefined,
+              from: from || undefined,
+              to: to || undefined,
+            })
+          }
           loading={pending}
-          loadingText="جاري التطبيق..."
+          loadingText={ui.loading}
           className="h-9 w-full"
         >
-          تطبيق التصفية
+          تطبيق
         </LoadingButton>
       </div>
     </div>

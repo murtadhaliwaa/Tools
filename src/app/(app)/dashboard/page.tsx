@@ -17,8 +17,8 @@ import { ui } from "@/lib/ui";
 
 function StatsSkeleton() {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, i) => (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      {Array.from({ length: 5 }).map((_, i) => (
         <Skeleton key={i} className="h-28 rounded-xl" />
       ))}
     </div>
@@ -30,12 +30,13 @@ async function StatsSection({ organizationId }: { organizationId: string }) {
   const cards = [
     { title: "إجمالي الأدوات", value: stats.totalItems, icon: Package },
     { title: "متوفرة", value: stats.available, icon: CheckCircle2 },
+    { title: "عند مكينة / بلا رصيد", value: stats.issued, icon: Package },
     { title: "تحت التصليح", value: stats.inRepair, icon: Wrench },
     { title: "حركات هذا الشهر", value: stats.monthTransactions, icon: Activity },
   ];
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
       {cards.map((card) => {
         const Icon = card.icon;
         return (

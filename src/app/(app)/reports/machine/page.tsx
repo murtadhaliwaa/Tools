@@ -2,8 +2,9 @@ import { requireUser } from "@/lib/auth";
 import { getMachinesCached } from "@/lib/cache";
 import { getMachineReport } from "@/services/reports";
 import { formatDateTime } from "@/lib/format";
-import { ExportCsvButton } from "@/components/reports/export-csv-button";
+import { MachineReportExport } from "@/components/reports/report-export-buttons";
 import { MachineReportFilters } from "@/components/reports/machine-report-filters";
+import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -45,28 +46,24 @@ export default async function MachineReportPage({
   const machineName = machines.find((m) => m.id === machineId)?.name ?? "";
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">تقرير مكينة</h1>
-          <p className="text-sm text-muted-foreground">
-            الأدوات المصروفة للمكينة المحددة
-          </p>
-        </div>
-        {rows.length > 0 ? (
-          <ExportCsvButton
-            filename={`machine-report-${machineName}`}
-            headers={["الأداة", "الرمز", "التاريخ", "بواسطة", "ملاحظات"]}
-            rows={rows.map((r) => [
-              r.item.name,
-              r.item.code,
-              formatDateTime(r.createdAt),
-              r.performedBy.fullName,
-              r.notes,
-            ])}
-          />
-        ) : null}
-      </div>
+    <PageShell>
+      <PageHeader
+        title="تقرير مكينة"
+        description="الأدوات المصروفة للمكينة المحددة"
+        actions={
+          machineId ? (
+            <MachineReportExport
+              filename={`machine-report-${machineName || "machine"}`}
+              title={`تقرير مكينة — ${machineName}`}
+              sheetName="مكينة"
+              enabled={rows.length > 0}
+              machineId={machineId}
+              from={from}
+              to={to}
+            />
+          ) : null
+        }
+      />
 
       <Card>
         <CardHeader>
@@ -85,10 +82,10 @@ export default async function MachineReportPage({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-center">الأداة</TableHead>
-                <TableHead className="text-center">التاريخ</TableHead>
-                <TableHead className="text-center">بواسطة</TableHead>
-                <TableHead className="text-center">ملاحظات</TableHead>
+                <TableHead>الأداة</TableHead>
+                <TableHead>التاريخ</TableHead>
+                <TableHead>بواسطة</TableHead>
+                <TableHead>ملاحظات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -96,7 +93,7 @@ export default async function MachineReportPage({
                 <TableRow>
                   <TableCell
                     colSpan={4}
-                    className="text-center text-muted-foreground"
+                    className="text-muted-foreground"
                   >
                     {machineId
                       ? "لا توجد بيانات"
@@ -106,16 +103,10 @@ export default async function MachineReportPage({
               ) : (
                 rows.map((r) => (
                   <TableRow key={r.id}>
-                    <TableCell className="text-center">{r.item.name}</TableCell>
-                    <TableCell className="text-center">
-                      {formatDateTime(r.createdAt)}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {r.performedBy.fullName}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {r.notes ?? "—"}
-                    </TableCell>
+                    <TableCell>{r.item.name}</TableCell>
+                    <TableCell>{formatDateTime(r.createdAt)}</TableCell>
+                    <TableCell>{r.performedBy.fullName}</TableCell>
+                    <TableCell>{r.notes ?? "—"}</TableCell>
                   </TableRow>
                 ))
               )}
@@ -123,6 +114,6 @@ export default async function MachineReportPage({
           </Table>
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   );
 }

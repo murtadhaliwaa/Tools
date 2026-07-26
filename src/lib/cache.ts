@@ -45,7 +45,7 @@ export function getItemFilterOptionsCached(organizationId: string) {
     async (orgId: string) =>
       prisma.item.findMany({
         where: { organizationId: orgId, deletedAt: null },
-        select: { id: true, name: true },
+        select: { id: true, name: true, code: true },
         orderBy: { name: "asc" },
         take: 500,
       }),

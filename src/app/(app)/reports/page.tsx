@@ -11,6 +11,11 @@ const REPORTS = [
     description: "الأدوات المصروفة لمكينة خلال فترة",
   },
   {
+    href: "/reports/material",
+    title: "تقرير مادة",
+    description: "حالة مادة معينة وحركاتها خلال فترة",
+  },
+  {
     href: "/reports/status",
     title: "تقرير حالة التصليح",
     description: "الأدوات تحت التصليح حالياً ومنذ متى",

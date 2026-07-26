@@ -1,10 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import { FilterSelect } from "@/components/shared/filter-select";
 import { LoadingButton } from "@/components/shared/loading-button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useFilterNavigation } from "@/hooks/use-filter-navigation";
 import { ItemStatus, ItemStatusLabel } from "@/types/domain";
 import { ui } from "@/lib/ui";
 
@@ -22,8 +23,7 @@ export function ItemsFilters({
     status?: string;
   };
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const { pending, navigate } = useFilterNavigation("/items");
   const [q, setQ] = useState(initial.q ?? "");
   const [categoryId, setCategoryId] = useState(initial.categoryId || "all");
   const [status, setStatus] = useState(initial.status || "all");
@@ -48,21 +48,22 @@ export function ItemsFilters({
   );
 
   function apply() {
-    const params = new URLSearchParams();
-    params.set("page", "1");
-    if (q.trim()) params.set("q", q.trim());
-    if (categoryId !== "all") params.set("categoryId", categoryId);
-    if (status !== "all") params.set("status", status);
-    startTransition(() => {
-      router.push(`/items?${params.toString()}`);
+    navigate({
+      page: "1",
+      q: q.trim() || undefined,
+      categoryId: categoryId !== "all" ? categoryId : undefined,
+      status: status !== "all" ? status : undefined,
     });
   }
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <div className="space-y-1.5">
-        <label className={ui.filterLabel}>بحث</label>
+        <Label htmlFor="items-search" className={ui.filterLabel}>
+          بحث
+        </Label>
         <Input
+          id="items-search"
           placeholder="بالاسم أو الرمز..."
           value={q}
           onChange={(e) => setQ(e.target.value)}

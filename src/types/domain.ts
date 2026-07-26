@@ -1,9 +1,9 @@
 /**
- * حالات الأداة المشتقة من آخر Transaction — ليست أعمدة في قاعدة البيانات.
+ * حالات الأداة المشتقة من آخر Transaction + الكمية.
  *
- * ADDITION | RETURN_FROM_REPAIR → AVAILABLE
- * ISSUE                         → ISSUED (عند مكينة)
- * SEND_TO_REPAIR                → IN_REPAIR
+ * SEND_TO_REPAIR → IN_REPAIR
+ * quantity <= 0  → ISSUED (عند مكينة / بلا رصيد)
+ * وإلا           → AVAILABLE
  */
 export const ItemStatus = {
   AVAILABLE: "AVAILABLE",
@@ -22,6 +22,7 @@ export const ItemStatusLabel: Record<ItemStatus, string> = {
 export const TransactionTypeLabel = {
   ADDITION: "إضافة",
   ISSUE: "صرف",
+  RETURN_FROM_MACHINE: "إرجاع من مكينة",
   SEND_TO_REPAIR: "إخراج للتصليح",
   RETURN_FROM_REPAIR: "رجوع من التصليح",
 } as const;

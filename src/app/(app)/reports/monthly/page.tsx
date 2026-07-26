@@ -1,11 +1,11 @@
-import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth";
+import { requireAdminPage } from "@/lib/auth";
 import { getMonthlySummary, getTopIssuedItems } from "@/services/reports";
 import { TransactionTypeLabel } from "@/types/domain";
-import { ExportCsvButton } from "@/components/reports/export-csv-button";
+import { MonthlyReportExport } from "@/components/reports/report-export-buttons";
 import { MonthlyCharts } from "@/components/reports/monthly-charts";
 import { MonthlyReportFilters } from "@/components/reports/monthly-report-filters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, PageShell } from "@/components/layout/page-header";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -13,18 +13,33 @@ function param(v: string | string[] | undefined) {
   return Array.isArray(v) ? v[0] : v;
 }
 
+function parseYearMonth(
+  yearRaw: string | undefined,
+  monthRaw: string | undefined,
+) {
+  const now = new Date();
+  const year = Number(yearRaw ?? now.getFullYear());
+  const month = Number(monthRaw ?? now.getMonth() + 1);
+  const safeYear =
+    Number.isFinite(year) && year >= 2000 && year <= 2100
+      ? year
+      : now.getFullYear();
+  const safeMonth =
+    Number.isFinite(month) && month >= 1 && month <= 12
+      ? month
+      : now.getMonth() + 1;
+  return { year: safeYear, month: safeMonth };
+}
+
 export default async function MonthlyReportPage({
   searchParams,
 }: {
   searchParams: SearchParams;
 }) {
-  const { profile } = await requireUser();
-  if (profile.role !== "ADMIN") redirect("/dashboard");
+  const { profile } = await requireAdminPage();
 
   const sp = await searchParams;
-  const now = new Date();
-  const year = Number(param(sp.year) ?? now.getFullYear());
-  const month = Number(param(sp.month) ?? now.getMonth() + 1);
+  const { year, month } = parseYearMonth(param(sp.year), param(sp.month));
 
   const [summary, topIssued] = await Promise.all([
     getMonthlySummary({
@@ -50,29 +65,21 @@ export default async function MonthlyReportPage({
   }));
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">التقرير الشهري</h1>
-          <p className="text-sm text-muted-foreground">
-            إجمالي الحركات: {summary.total}
-          </p>
-        </div>
-        <ExportCsvButton
-          filename={`monthly-${year}-${month}`}
-          sheetName="شهري"
-          headers={["القسم", "الاسم", "العدد"]}
-          rows={[
-            ...typeRows.map(([type, count]) => [
-              "النوع",
-              TransactionTypeLabel[type as keyof typeof TransactionTypeLabel] ??
-                type,
-              count,
-            ]),
-            ...categoryRows.map(([name, count]) => ["التصنيف", name, count]),
-          ]}
-        />
-      </div>
+    <PageShell>
+      <PageHeader
+        title="التقرير الشهري"
+        description={`إجمالي الحركات: ${summary.total}`}
+        actions={
+          <MonthlyReportExport
+            filename={`monthly-${year}-${month}`}
+            title={`التقرير الشهري — ${month}/${year}`}
+            sheetName="شهري"
+            enabled={summary.total > 0}
+            year={year}
+            month={month}
+          />
+        }
+      />
 
       <Card>
         <CardHeader>
@@ -136,6 +143,6 @@ export default async function MonthlyReportPage({
           </CardContent>
         </Card>
       </div>
-    </div>
+    </PageShell>
   );
 }

@@ -1,8 +1,9 @@
 import { requireUser } from "@/lib/auth";
 import { getRepairStatusReport } from "@/services/reports";
 import { formatDateTime } from "@/lib/format";
-import { ExportCsvButton } from "@/components/reports/export-csv-button";
+import { RepairStatusExport } from "@/components/reports/report-export-buttons";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -18,25 +19,19 @@ export default async function StatusReportPage() {
   const rows = await getRepairStatusReport(profile.organizationId);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">تقرير حالة التصليح</h1>
-          <p className="text-sm text-muted-foreground">
-            {rows.length} أداة تحت التصليح حالياً
-          </p>
-        </div>
-        <ExportCsvButton
-          filename="repair-status"
-          headers={["الأداة", "الرمز", "التصنيف", "منذ"]}
-          rows={rows.map((r) => [
-            r.name,
-            r.code,
-            r.categoryName,
-            r.since ? formatDateTime(r.since) : "",
-          ])}
-        />
-      </div>
+    <PageShell>
+      <PageHeader
+        title="تقرير حالة التصليح"
+        description={`${rows.length} أداة تحت التصليح حالياً`}
+        actions={
+          <RepairStatusExport
+            filename="repair-status"
+            title="تقرير حالة التصليح"
+            sheetName="تصليح"
+            enabled={rows.length > 0}
+          />
+        }
+      />
 
       <Card>
         <CardContent className="p-0">
@@ -52,7 +47,7 @@ export default async function StatusReportPage() {
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground">
+                  <TableCell colSpan={4} className="text-muted-foreground">
                     لا توجد أدوات تحت التصليح
                   </TableCell>
                 </TableRow>
@@ -74,6 +69,6 @@ export default async function StatusReportPage() {
           </Table>
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   );
 }

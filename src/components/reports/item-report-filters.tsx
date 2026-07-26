@@ -1,9 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import { FilterSelect } from "@/components/shared/filter-select";
 import { LoadingButton } from "@/components/shared/loading-button";
+import { useFilterNavigation } from "@/hooks/use-filter-navigation";
 import { ui } from "@/lib/ui";
 
 type Option = { id: string; name: string; code?: string | null };
@@ -15,8 +15,7 @@ export function ItemReportFilters({
   items: Option[];
   initialItemId?: string;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const { pending, navigate } = useFilterNavigation("/reports/item");
   const [itemId, setItemId] = useState(initialItemId ?? "");
 
   const options = useMemo(
@@ -27,13 +26,6 @@ export function ItemReportFilters({
       })),
     [items],
   );
-
-  function apply() {
-    if (!itemId) return;
-    startTransition(() => {
-      router.push(`/reports/item?itemId=${encodeURIComponent(itemId)}`);
-    });
-  }
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -47,7 +39,10 @@ export function ItemReportFilters({
       />
       <LoadingButton
         type="button"
-        onClick={apply}
+        onClick={() => {
+          if (!itemId) return;
+          navigate({ itemId });
+        }}
         loading={pending}
         loadingText={ui.loading}
         disabled={!itemId}

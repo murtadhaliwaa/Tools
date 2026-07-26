@@ -52,6 +52,7 @@ export function ItemsManager({
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [quantity, setQuantity] = useState("1");
   const [notes, setNotes] = useState("");
   const [pending, startTransition] = useTransition();
   const [busyLabel, setBusyLabel] = useState<string>(ui.saving);
@@ -61,6 +62,7 @@ export function ItemsManager({
     setName("");
     setCode("");
     setCategoryId(categories[0]?.id ?? "");
+    setQuantity("1");
     setNotes("");
     setOpen(true);
   }
@@ -70,6 +72,7 @@ export function ItemsManager({
     setName(item.name);
     setCode(item.code ?? "");
     setCategoryId(item.categoryId);
+    setQuantity(String(item.quantity ?? 1));
     setNotes(item.notes ?? "");
     setOpen(true);
   }
@@ -81,6 +84,7 @@ export function ItemsManager({
         name,
         code: code || null,
         categoryId,
+        quantity: Number(quantity),
         notes: notes || null,
       };
       const result = editing
@@ -153,6 +157,18 @@ export function ItemsManager({
                   </SelectContent>
                 </Select>
                 <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  step={1}
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  placeholder="عدد المادة"
+                  dir="ltr"
+                  disabled={pending}
+                  aria-label="عدد المادة"
+                />
+                <Input
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="ملاحظات (اختياري)"
@@ -173,20 +189,23 @@ export function ItemsManager({
       ) : null}
 
       <BusyOverlay busy={pending && !open} label={busyLabel}>
-        <Table>
+        <Table className="table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead>الأداة</TableHead>
-              <TableHead>التصنيف</TableHead>
-              <TableHead>الحالة</TableHead>
-              {!readOnly ? <TableHead>إجراءات</TableHead> : null}
+              <TableHead className="w-[26%]">الأداة</TableHead>
+              <TableHead className="w-[20%]">التصنيف</TableHead>
+              <TableHead className="w-[12%]">العدد</TableHead>
+              <TableHead className="w-[20%]">الحالة</TableHead>
+              {!readOnly ? (
+                <TableHead className="w-[22%]">إجراءات</TableHead>
+              ) : null}
             </TableRow>
           </TableHeader>
           <TableBody>
             {items.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={readOnly ? 3 : 4}
+                  colSpan={readOnly ? 4 : 5}
                   className={ui.emptyCell}
                 >
                   لا توجد أدوات مطابقة
@@ -195,7 +214,7 @@ export function ItemsManager({
             ) : (
               items.map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell>
+                  <TableCell className="whitespace-normal">
                     <div className="font-medium">{item.name}</div>
                     {item.code ? (
                       <div className="text-xs text-muted-foreground" dir="ltr">
@@ -203,7 +222,10 @@ export function ItemsManager({
                       </div>
                     ) : null}
                   </TableCell>
-                  <TableCell>{item.categoryName}</TableCell>
+                  <TableCell className="whitespace-normal">
+                    {item.categoryName}
+                  </TableCell>
+                  <TableCell dir="ltr">{item.quantity}</TableCell>
                   <TableCell>
                     <div className="flex flex-col items-center gap-1">
                       <StatusBadge status={item.status} />

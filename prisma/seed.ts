@@ -12,6 +12,12 @@ const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_DB_SEED !== "1") {
+    throw new Error(
+      "ممنوع تشغيل db:seed على الإنتاج بدون ALLOW_DB_SEED=1 (يحذف بيانات الكتالوج)",
+    );
+  }
+
   console.log("🌱 بدء تعبئة البيانات التجريبية...");
 
   // لا نحذف Profiles (مرتبطة بـ Auth) — نحدّث الكتالوج فقط

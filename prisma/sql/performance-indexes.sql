@@ -3,6 +3,22 @@
 
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
+-- تفرد الأسماء/الرموز للعناصر النشطة فقط (بدل إعادة تسمية عند الحذف الناعم)
+ALTER TABLE "Category" DROP CONSTRAINT IF EXISTS "Category_organizationId_name_key";
+CREATE UNIQUE INDEX IF NOT EXISTS "Category_org_name_active_key"
+  ON "Category" ("organizationId", name)
+  WHERE "deletedAt" IS NULL;
+
+ALTER TABLE "Item" DROP CONSTRAINT IF EXISTS "Item_organizationId_code_key";
+CREATE UNIQUE INDEX IF NOT EXISTS "Item_org_code_active_key"
+  ON "Item" ("organizationId", code)
+  WHERE "deletedAt" IS NULL AND code IS NOT NULL;
+
+ALTER TABLE "Machine" DROP CONSTRAINT IF EXISTS "Machine_organizationId_name_key";
+CREATE UNIQUE INDEX IF NOT EXISTS "Machine_org_name_active_key"
+  ON "Machine" ("organizationId", name)
+  WHERE "deletedAt" IS NULL;
+
 -- أدوات نشطة فقط (الأكثر استخداماً في القوائم)
 CREATE INDEX IF NOT EXISTS "Item_org_active_name_idx"
   ON "Item" ("organizationId", name)
