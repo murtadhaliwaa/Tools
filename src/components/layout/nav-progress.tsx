@@ -10,19 +10,11 @@ import { usePathname, useSearchParams } from "next/navigation";
 export function NavProgress() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const navKey = `${pathname}?${searchParams.toString()}`;
   const [visible, setVisible] = useState(false);
   const [width, setWidth] = useState(0);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  function stop() {
-    if (timer.current) clearInterval(timer.current);
-    timer.current = null;
-    setWidth(100);
-    window.setTimeout(() => {
-      setVisible(false);
-      setWidth(0);
-    }, 180);
-  }
+  const prevKey = useRef(navKey);
 
   function start() {
     setVisible(true);
@@ -33,16 +25,25 @@ export function NavProgress() {
     }, 200);
   }
 
-  useEffect(() => {
+  function complete() {
     if (timer.current) clearInterval(timer.current);
     timer.current = null;
     setWidth(100);
-    const t = window.setTimeout(() => {
+    window.setTimeout(() => {
       setVisible(false);
       setWidth(0);
     }, 180);
+  }
+
+  useEffect(() => {
+    if (prevKey.current === navKey) return;
+    prevKey.current = navKey;
+    // تأجيل لإرضاء قاعدة set-state-in-effect (لا setState متزامن داخل effect)
+    const t = window.setTimeout(() => {
+      complete();
+    }, 0);
     return () => window.clearTimeout(t);
-  }, [pathname, searchParams]);
+  }, [navKey]);
 
   useEffect(() => {
     const onClick = (event: MouseEvent) => {
