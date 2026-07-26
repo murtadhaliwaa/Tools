@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { DateField } from "@/components/shared/date-field";
-import { FilterSelect } from "@/components/shared/filter-select";
+import { FilterCombobox } from "@/components/shared/filter-combobox";
 import { LoadingButton } from "@/components/shared/loading-button";
 import { useFilterNavigation } from "@/hooks/use-filter-navigation";
 import { ui } from "@/lib/ui";
@@ -22,18 +22,19 @@ export function MachineReportFilters({
   const [to, setTo] = useState(initial.to ?? "");
 
   const machineOptions = useMemo(
-    () => machines.map((m) => ({ value: m.id, label: m.name })),
+    () => machines.map((m) => ({ value: m.id, label: m.name, keywords: m.name })),
     [machines],
   );
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <FilterSelect
+      <FilterCombobox
         label="المكينة"
         value={machineId}
         onValueChange={setMachineId}
         options={machineOptions}
         placeholder="اختر مكينة"
+        searchPlaceholder="ابحث عن مكينة..."
       />
       <DateField
         label="من تاريخ"

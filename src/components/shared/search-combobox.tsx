@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { ChevronsUpDown } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import {
   Command,
@@ -17,6 +16,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { ui } from "@/lib/ui";
+import { cn } from "@/lib/utils";
 
 export type ComboboxOption = {
   value: string;
@@ -60,6 +61,7 @@ export function SearchCombobox({
         disabled={disabled}
         className={cn(
           buttonVariants({ variant: "outline" }),
+          ui.field,
           "w-full justify-between font-normal",
         )}
       >

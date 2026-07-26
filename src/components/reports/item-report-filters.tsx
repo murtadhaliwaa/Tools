@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FilterSelect } from "@/components/shared/filter-select";
+import { FilterCombobox } from "@/components/shared/filter-combobox";
 import { LoadingButton } from "@/components/shared/loading-button";
 import { useFilterNavigation } from "@/hooks/use-filter-navigation";
 import { ui } from "@/lib/ui";
@@ -23,18 +23,20 @@ export function ItemReportFilters({
       items.map((i) => ({
         value: i.id,
         label: i.code ? `${i.name} (${i.code})` : i.name,
+        keywords: [i.name, i.code].filter(Boolean).join(" "),
       })),
     [items],
   );
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-      <FilterSelect
+      <FilterCombobox
         label="الأداة"
         value={itemId}
         onValueChange={setItemId}
         options={options}
         placeholder="اختر أداة"
+        searchPlaceholder="ابحث بالاسم أو الرمز..."
         className="min-w-56 flex-1"
       />
       <LoadingButton

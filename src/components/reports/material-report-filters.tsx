@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { DateField } from "@/components/shared/date-field";
-import { FilterSelect } from "@/components/shared/filter-select";
+import { FilterCombobox } from "@/components/shared/filter-combobox";
 import { LoadingButton } from "@/components/shared/loading-button";
 import { useFilterNavigation } from "@/hooks/use-filter-navigation";
 import { ui } from "@/lib/ui";
@@ -26,18 +26,20 @@ export function MaterialReportFilters({
       items.map((i) => ({
         value: i.id,
         label: i.code ? `${i.name} (${i.code})` : i.name,
+        keywords: [i.name, i.code].filter(Boolean).join(" "),
       })),
     [items],
   );
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <FilterSelect
+      <FilterCombobox
         label="المادة"
         value={itemId}
         onValueChange={setItemId}
         options={options}
         placeholder="اختر مادة"
+        searchPlaceholder="ابحث بالاسم أو الرمز..."
       />
       <DateField
         label="من تاريخ"
