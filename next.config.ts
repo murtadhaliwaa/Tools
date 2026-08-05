@@ -5,9 +5,8 @@ const withPWA = withPWAInit({
   dest: "public",
   disable: process.env.NODE_ENV === "development",
   register: true,
-  fallbacks: {
-    document: "/offline",
-  },
+  // لا نعرض /offline تلقائياً عند فشل الشبكة — يضلّل عندما الإنترنت يعمل
+  // والخادم (مثل Vercel) محجوب من الشبكة المحلية
   workboxOptions: {
     disableDevLogs: true,
   },
@@ -28,6 +27,11 @@ const nextConfig: NextConfig = {
         ...(process.env.NEXT_PUBLIC_SITE_URL
           ? [process.env.NEXT_PUBLIC_SITE_URL.replace(/^https?:\/\//, "")]
           : []),
+        // وكيل Cloudflare عندما يكون Vercel محجوباً من شبكة المستخدم
+        ...(process.env.ACCESS_PROXY_HOST
+          ? [process.env.ACCESS_PROXY_HOST.replace(/^https?:\/\//, "")]
+          : []),
+        "tools-access-proxy.chrome-domain.workers.dev",
       ],
     },
   },

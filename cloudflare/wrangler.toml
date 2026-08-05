@@ -1,0 +1,4 @@
+name = "tools-access-proxy"
+main = "access-proxy.js"
+compatibility_date = "2024-11-01"
+workers_dev = true
