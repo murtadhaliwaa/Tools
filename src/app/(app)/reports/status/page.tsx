@@ -16,12 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-type SearchParams = Promise<Record<string, string | string[] | undefined>>;
-
-function param(v: string | string[] | undefined) {
-  return Array.isArray(v) ? v[0] : v;
-}
+import { param, type SearchParams } from "@/lib/search-params";
 
 export default async function StatusReportPage({
   searchParams,

@@ -85,8 +85,3 @@ export function ExportButtons({
     </div>
   );
 }
-
-/** توافق مع الاستيرادات القديمة */
-export function ExportCsvButton(props: ExportButtonsProps & { label?: string }) {
-  return <ExportButtons {...props} />;
-}

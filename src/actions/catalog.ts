@@ -5,7 +5,18 @@ import { requireRole, requireUser } from "@/lib/auth";
 import { bustCatalogCache, bustItemOptionsCache } from "@/lib/cache";
 import { prisma } from "@/lib/db";
 import { categorySchema, itemSchema, machineSchema } from "@/lib/validations";
+import { createTransaction } from "@/services/transactions";
 import { type ActionResult, toActionError } from "@/actions/shared";
+
+/** ADMIN + KEEPER: أدوات/مكائن. ADMIN فقط: تصنيفات — انظر docs/SECURITY.md */
+
+function missingIfZero(
+  count: number,
+  message: string,
+): ActionResult | null {
+  if (count === 0) return { success: false, message };
+  return null;
+}
 
 export async function createCategoryAction(
   input: unknown,
@@ -34,10 +45,12 @@ export async function updateCategoryAction(
   try {
     const { profile } = await requireRole(["ADMIN"]);
     const data = categorySchema.parse(input);
-    await prisma.category.updateMany({
+    const updated = await prisma.category.updateMany({
       where: { id, organizationId: profile.organizationId, deletedAt: null },
       data: { name: data.name },
     });
+    const missing = missingIfZero(updated.count, "التصنيف غير موجود");
+    if (missing) return missing;
     bustCatalogCache(profile.organizationId);
     revalidatePath("/categories");
     return { success: true, message: "تم تحديث التصنيف" };
@@ -49,12 +62,22 @@ export async function updateCategoryAction(
 export async function deleteCategoryAction(id: string): Promise<ActionResult> {
   try {
     const { profile } = await requireRole(["ADMIN"]);
-    const row = await prisma.category.findFirst({
-      where: { id, organizationId: profile.organizationId, deletedAt: null },
-    });
-    if (!row) return { success: false, message: "التصنيف غير موجود" };
 
-    await prisma.category.updateMany({
+    const activeItems = await prisma.item.count({
+      where: {
+        categoryId: id,
+        organizationId: profile.organizationId,
+        deletedAt: null,
+      },
+    });
+    if (activeItems > 0) {
+      return {
+        success: false,
+        message: "لا يمكن حذف تصنيف مرتبط بأدوات نشطة — انقل الأدوات أولاً",
+      };
+    }
+
+    const deleted = await prisma.category.updateMany({
       where: {
         id,
         organizationId: profile.organizationId,
@@ -62,6 +85,8 @@ export async function deleteCategoryAction(id: string): Promise<ActionResult> {
       },
       data: { deletedAt: new Date() },
     });
+    const missing = missingIfZero(deleted.count, "التصنيف غير موجود");
+    if (missing) return missing;
     bustCatalogCache(profile.organizationId);
     revalidatePath("/categories");
     return { success: true, message: "تم حذف التصنيف" };
@@ -98,10 +123,12 @@ export async function updateMachineAction(
   try {
     const { profile } = await requireUser();
     const data = machineSchema.parse(input);
-    await prisma.machine.updateMany({
+    const updated = await prisma.machine.updateMany({
       where: { id, organizationId: profile.organizationId, deletedAt: null },
       data: { name: data.name, location: data.location || null },
     });
+    const missing = missingIfZero(updated.count, "المكينة غير موجودة");
+    if (missing) return missing;
     bustCatalogCache(profile.organizationId);
     revalidatePath("/machines");
     return { success: true, message: "تم تحديث المكينة" };
@@ -113,12 +140,7 @@ export async function updateMachineAction(
 export async function deleteMachineAction(id: string): Promise<ActionResult> {
   try {
     const { profile } = await requireUser();
-    const row = await prisma.machine.findFirst({
-      where: { id, organizationId: profile.organizationId, deletedAt: null },
-    });
-    if (!row) return { success: false, message: "المكينة غير موجودة" };
-
-    await prisma.machine.updateMany({
+    const deleted = await prisma.machine.updateMany({
       where: {
         id,
         organizationId: profile.organizationId,
@@ -126,6 +148,8 @@ export async function deleteMachineAction(id: string): Promise<ActionResult> {
       },
       data: { deletedAt: new Date() },
     });
+    const missing = missingIfZero(deleted.count, "المكينة غير موجودة");
+    if (missing) return missing;
     bustCatalogCache(profile.organizationId);
     revalidatePath("/machines");
     return { success: true, message: "تم حذف المكينة" };
@@ -139,43 +163,21 @@ export async function createItemAction(input: unknown): Promise<ActionResult> {
     const { profile } = await requireUser();
     const data = itemSchema.parse(input);
 
-    const category = await prisma.category.findFirst({
-      where: {
-        id: data.categoryId,
-        organizationId: profile.organizationId,
-        deletedAt: null,
+    await createTransaction(
+      {
+        type: "ADDITION",
+        name: data.name,
+        code: data.code,
+        categoryId: data.categoryId,
+        quantity: data.quantity,
+        notes: data.notes || "إضافة عبر إدارة الأدوات",
       },
-      select: { id: true },
-    });
-    if (!category) {
-      return { success: false, message: "التصنيف غير موجود" };
-    }
-
-    await prisma.$transaction(async (tx) => {
-      const item = await tx.item.create({
-        data: {
-          name: data.name,
-          code: data.code || null,
-          categoryId: data.categoryId,
-          quantity: data.quantity,
-          notes: data.notes || null,
-          organizationId: profile.organizationId,
-        },
-      });
-
-      await tx.transaction.create({
-        data: {
-          organizationId: profile.organizationId,
-          type: "ADDITION",
-          itemId: item.id,
-          performedById: profile.id,
-          notes: "إضافة عبر إدارة الأدوات",
-        },
-      });
-    });
+      profile,
+    );
 
     revalidatePath("/items");
     revalidatePath("/dashboard");
+    revalidatePath("/transactions");
     bustItemOptionsCache(profile.organizationId);
     return { success: true, message: "تم إضافة الأداة" };
   } catch (error) {
@@ -203,7 +205,7 @@ export async function updateItemAction(
       return { success: false, message: "التصنيف غير موجود" };
     }
 
-    await prisma.item.updateMany({
+    const updated = await prisma.item.updateMany({
       where: { id, organizationId: profile.organizationId, deletedAt: null },
       data: {
         name: data.name,
@@ -213,6 +215,8 @@ export async function updateItemAction(
         notes: data.notes || null,
       },
     });
+    const missing = missingIfZero(updated.count, "الأداة غير موجودة");
+    if (missing) return missing;
     revalidatePath("/items");
     bustItemOptionsCache(profile.organizationId);
     return { success: true, message: "تم تحديث الأداة" };
@@ -224,12 +228,7 @@ export async function updateItemAction(
 export async function deleteItemAction(id: string): Promise<ActionResult> {
   try {
     const { profile } = await requireUser();
-    const row = await prisma.item.findFirst({
-      where: { id, organizationId: profile.organizationId, deletedAt: null },
-    });
-    if (!row) return { success: false, message: "الأداة غير موجودة" };
-
-    await prisma.item.updateMany({
+    const deleted = await prisma.item.updateMany({
       where: {
         id,
         organizationId: profile.organizationId,
@@ -237,6 +236,8 @@ export async function deleteItemAction(id: string): Promise<ActionResult> {
       },
       data: { deletedAt: new Date() },
     });
+    const missing = missingIfZero(deleted.count, "الأداة غير موجودة");
+    if (missing) return missing;
     revalidatePath("/items");
     bustItemOptionsCache(profile.organizationId);
     return { success: true, message: "تم حذف الأداة" };

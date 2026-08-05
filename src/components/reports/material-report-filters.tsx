@@ -1,11 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { DateField } from "@/components/shared/date-field";
-import { FilterCombobox } from "@/components/shared/filter-combobox";
-import { LoadingButton } from "@/components/shared/loading-button";
-import { useFilterNavigation } from "@/hooks/use-filter-navigation";
-import { ui } from "@/lib/ui";
+import { EntityDateReportFilters } from "@/components/reports/entity-date-report-filters";
 
 type Option = { id: string; name: string; code?: string | null };
 
@@ -16,53 +11,18 @@ export function MaterialReportFilters({
   items: Option[];
   initial: { itemId?: string; from?: string; to?: string };
 }) {
-  const { pending, navigate } = useFilterNavigation("/reports/material");
-  const [itemId, setItemId] = useState(initial.itemId ?? "");
-  const [from, setFrom] = useState(initial.from ?? "");
-  const [to, setTo] = useState(initial.to ?? "");
-
-  const options = useMemo(
-    () =>
-      items.map((i) => ({
-        value: i.id,
-        label: i.code ? `${i.name} (${i.code})` : i.name,
-        keywords: [i.name, i.code].filter(Boolean).join(" "),
-      })),
-    [items],
-  );
-
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <FilterCombobox
-        label="المادة"
-        value={itemId}
-        onValueChange={setItemId}
-        options={options}
-        placeholder="اختر مادة"
-        searchPlaceholder="ابحث بالاسم أو الرمز..."
-      />
-      <DateField
-        label="من تاريخ"
-        name="from"
-        value={from}
-        onChange={setFrom}
-      />
-      <DateField label="إلى تاريخ" name="to" value={to} onChange={setTo} />
-      <div className="flex items-end">
-        <LoadingButton
-          type="button"
-          onClick={() => {
-            if (!itemId) return;
-            navigate({ itemId, from, to });
-          }}
-          loading={pending}
-          loadingText={ui.loading}
-          disabled={!itemId}
-          className="h-9 w-full"
-        >
-          عرض التقرير
-        </LoadingButton>
-      </div>
-    </div>
+    <EntityDateReportFilters
+      basePath="/reports/material"
+      entityKey="itemId"
+      entityLabel="المادة"
+      options={items}
+      initial={{
+        entityId: initial.itemId,
+        from: initial.from,
+        to: initial.to,
+      }}
+      searchPlaceholder="ابحث بالاسم أو الرمز..."
+    />
   );
 }

@@ -1,10 +1,9 @@
 "use server";
 
-import { headers } from "next/headers";
 import { requireUser, requireRole } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import type { ExportRow } from "@/lib/export-report";
-import { clientKeyFromHeaders, rateLimit } from "@/lib/rate-limit";
+import { parseDayEnd } from "@/lib/search-params";
 import {
   exportItemSchema,
   exportMachineSchema,
@@ -19,18 +18,17 @@ import {
   getRepairStatusReport,
 } from "@/services/reports";
 import { TransactionTypeLabel } from "@/types/domain";
+import { guardRate } from "@/actions/shared";
 
-async function guardExportRate() {
-  const h = await headers();
-  const key = clientKeyFromHeaders(h, "export");
-  const result = await rateLimit(key, 20, 60_000);
-  if (!result.ok) {
-    throw new Error(`محاولات كثيرة. حاول بعد ${result.retryAfterSec} ثانية`);
+async function requireExportRate() {
+  const limited = await guardRate("export", 20);
+  if (limited) {
+    throw new Error(limited.message ?? "محاولات كثيرة");
   }
 }
 
 export async function loadMachineExportRows(input: unknown): Promise<ExportRow[]> {
-  await guardExportRate();
+  await requireExportRate();
   const { profile } = await requireUser();
   const parsed = exportMachineSchema.safeParse(input);
   if (!parsed.success) return [];
@@ -38,7 +36,7 @@ export async function loadMachineExportRows(input: unknown): Promise<ExportRow[]
     organizationId: profile.organizationId,
     machineId: parsed.data.machineId,
     from: parsed.data.from ? new Date(parsed.data.from) : undefined,
-    to: parsed.data.to ? new Date(`${parsed.data.to}T23:59:59`) : undefined,
+    to: parseDayEnd(parsed.data.to),
   });
   return rows.map((r) => [
     r.item.name,
@@ -52,7 +50,7 @@ export async function loadMachineExportRows(input: unknown): Promise<ExportRow[]
 export async function loadItemTimelineExportRows(
   input: unknown,
 ): Promise<ExportRow[]> {
-  await guardExportRate();
+  await requireExportRate();
   const { profile } = await requireUser();
   const parsed = exportItemSchema.safeParse(input);
   if (!parsed.success) return [];
@@ -72,7 +70,7 @@ export async function loadItemTimelineExportRows(
 export async function loadMaterialExportRows(
   input: unknown,
 ): Promise<ExportRow[]> {
-  await guardExportRate();
+  await requireExportRate();
   const { profile } = await requireUser();
   const parsed = exportMaterialSchema.safeParse(input);
   if (!parsed.success) return [];
@@ -80,7 +78,7 @@ export async function loadMaterialExportRows(
     organizationId: profile.organizationId,
     itemId: parsed.data.itemId,
     from: parsed.data.from ? new Date(parsed.data.from) : undefined,
-    to: parsed.data.to ? new Date(`${parsed.data.to}T23:59:59`) : undefined,
+    to: parseDayEnd(parsed.data.to),
   });
   if (!report) return [];
   return report.rows.map((r) => [
@@ -93,7 +91,7 @@ export async function loadMaterialExportRows(
 }
 
 export async function loadRepairStatusExportRows(): Promise<ExportRow[]> {
-  await guardExportRate();
+  await requireExportRate();
   const { profile } = await requireUser();
   const { rows } = await getRepairStatusReport(profile.organizationId, {
     page: 1,
@@ -110,7 +108,7 @@ export async function loadRepairStatusExportRows(): Promise<ExportRow[]> {
 export async function loadMonthlyExportRows(
   input: unknown,
 ): Promise<ExportRow[]> {
-  await guardExportRate();
+  await requireExportRate();
   const { profile } = await requireRole(["ADMIN"]);
   const parsed = exportMonthlySchema.safeParse(input);
   if (!parsed.success) return [];

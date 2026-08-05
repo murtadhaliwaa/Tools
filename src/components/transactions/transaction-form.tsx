@@ -8,7 +8,7 @@ import {
 } from "@/actions";
 import type { CreateTransactionInput } from "@/lib/validations";
 import { ItemStatus, ItemStatusLabel } from "@/types/domain";
-import type { TransactionFormItem } from "@/services/items";
+import type { TransactionFormItem } from "@/services/item-form";
 import { SearchCombobox } from "@/components/shared/search-combobox";
 import { LoadingButton } from "@/components/shared/loading-button";
 import { Input } from "@/components/ui/input";

@@ -47,7 +47,7 @@ export function ForgotPasswordForm() {
             <p
               className={
                 state.success
-                  ? "text-sm text-emerald-700 dark:text-emerald-400"
+                  ? "text-sm text-foreground"
                   : "text-sm text-destructive"
               }
             >

@@ -12,6 +12,7 @@ import {
   createTransaction,
   reverseQuantityAfterDelete,
 } from "@/services/transactions";
+import type { ItemStatus } from "@/types/domain";
 import { type ActionResult, guardRate, toActionError } from "@/actions/shared";
 
 export async function searchTransactionItemsAction(
@@ -22,7 +23,7 @@ export async function searchTransactionItemsAction(
     name: string;
     code: string | null;
     categoryName: string;
-    status: string;
+    status: ItemStatus;
     machineName: string | null;
     hasOutstandingIssue: boolean;
   }[]
@@ -31,7 +32,7 @@ export async function searchTransactionItemsAction(
     const { profile } = await requireUser();
     const limited = await guardRate(`search-items:${profile.id}`, 60);
     if (limited) return [];
-    const { getItemsForTransactionForm } = await import("@/services/items");
+    const { getItemsForTransactionForm } = await import("@/services/item-form");
     return getItemsForTransactionForm(profile.organizationId, {
       query,
       limit: 40,

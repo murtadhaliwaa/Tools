@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { bustProfileCache, requireRole } from "@/lib/auth";
+import { bustUsersCache } from "@/lib/cache";
 import { prisma } from "@/lib/db";
 import { toArabicErrorMessage } from "@/lib/errors";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -11,27 +12,6 @@ import {
   updateUserSchema,
 } from "@/lib/validations";
 import { type ActionResult, guardRate, toActionError } from "@/actions/shared";
-
-export async function updateUserRoleAction(
-  userId: string,
-  role: "ADMIN" | "KEEPER",
-): Promise<ActionResult> {
-  try {
-    const { profile } = await requireRole(["ADMIN"]);
-    if (userId === profile.id) {
-      return { success: false, message: "لا يمكنك تغيير دورك بنفسك" };
-    }
-    await prisma.profile.updateMany({
-      where: { id: userId, organizationId: profile.organizationId },
-      data: { role },
-    });
-    bustProfileCache(userId);
-    revalidatePath("/users");
-    return { success: true, message: "تم تحديث الدور" };
-  } catch (error) {
-    return toActionError(error);
-  }
-}
 
 export async function toggleUserActiveAction(
   userId: string,
@@ -52,6 +32,7 @@ export async function toggleUserActiveAction(
       data: { isActive: !target.isActive },
     });
     bustProfileCache(userId);
+    bustUsersCache(profile.organizationId);
     revalidatePath("/users");
     return {
       success: true,
@@ -124,6 +105,7 @@ export async function createUserAction(
     }
 
     revalidatePath("/users");
+    bustUsersCache(profile.organizationId);
     return { success: true, message: "تم إنشاء الحساب وتفعيله" };
   } catch (error) {
     return toActionError(error);
@@ -151,6 +133,7 @@ export async function updateUserAction(
     }
 
     bustProfileCache(userId);
+    bustUsersCache(profile.organizationId);
     revalidatePath("/users");
     return { success: true, message: "تم تحديث بيانات الحساب" };
   } catch (error) {

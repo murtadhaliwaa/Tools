@@ -6,12 +6,7 @@ import { MonthlyCharts } from "@/components/reports/monthly-charts";
 import { MonthlyReportFilters } from "@/components/reports/monthly-report-filters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
-
-type SearchParams = Promise<Record<string, string | string[] | undefined>>;
-
-function param(v: string | string[] | undefined) {
-  return Array.isArray(v) ? v[0] : v;
-}
+import { param, type SearchParams } from "@/lib/search-params";
 
 function parseYearMonth(
   yearRaw: string | undefined,

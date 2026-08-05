@@ -1,16 +1,11 @@
 import { requireAdminPage } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { getUsersCached } from "@/lib/cache";
 import { UsersManager } from "@/components/users/users-manager";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 
 export default async function UsersPage() {
   const { profile } = await requireAdminPage();
-
-  const users = await prisma.profile.findMany({
-    where: { organizationId: profile.organizationId },
-    orderBy: { createdAt: "asc" },
-    select: { id: true, fullName: true, role: true, isActive: true },
-  });
+  const users = await getUsersCached(profile.organizationId);
 
   return (
     <PageShell>

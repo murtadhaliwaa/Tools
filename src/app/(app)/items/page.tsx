@@ -8,14 +8,10 @@ import { ItemsManager } from "@/components/catalog/items-manager";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { param, type SearchParams } from "@/lib/search-params";
 import { cn } from "@/lib/utils";
 import { ui } from "@/lib/ui";
 
-type SearchParams = Promise<Record<string, string | string[] | undefined>>;
-
-function param(v: string | string[] | undefined) {
-  return Array.isArray(v) ? v[0] : v;
-}
 
 function parseStatus(value?: string): ItemStatusType | undefined {
   if (!value) return undefined;

@@ -16,12 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-type SearchParams = Promise<Record<string, string | string[] | undefined>>;
-
-function param(v: string | string[] | undefined) {
-  return Array.isArray(v) ? v[0] : v;
-}
+import { param, parseDayEnd, type SearchParams } from "@/lib/search-params";
 
 const TYPE_ORDER = [
   "ADDITION",
@@ -49,7 +44,7 @@ export default async function MaterialReportPage({
         organizationId: profile.organizationId,
         itemId,
         from: from ? new Date(from) : undefined,
-        to: to ? new Date(`${to}T23:59:59`) : undefined,
+        to: parseDayEnd(to),
       })
     : null;
 

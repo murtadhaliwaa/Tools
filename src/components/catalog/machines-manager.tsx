@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
+import { useState } from "react";
 import {
   createMachineAction,
   deleteMachineAction,
@@ -27,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useCrudManager } from "@/hooks/use-crud-manager";
 import { ui } from "@/lib/ui";
 
 type MachineRow = {
@@ -42,67 +42,30 @@ export function MachinesManager({
   machines: MachineRow[];
   readOnly?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<MachineRow | null>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const crud = useCrudManager<MachineRow>();
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
-  const [pending, startTransition] = useTransition();
-  const [busyLabel, setBusyLabel] = useState<string>(ui.saving);
-
-  function openCreate() {
-    setEditing(null);
-    setName("");
-    setLocation("");
-    setOpen(true);
-  }
-
-  function openEdit(row: MachineRow) {
-    setEditing(row);
-    setName(row.name);
-    setLocation(row.location ?? "");
-    setOpen(true);
-  }
-
-  function onSave() {
-    setBusyLabel(ui.saving);
-    startTransition(async () => {
-      const payload = { name, location: location || null };
-      const result = editing
-        ? await updateMachineAction(editing.id, payload)
-        : await createMachineAction(payload);
-      if (result.success) {
-        toast.success(result.message);
-        setOpen(false);
-      } else {
-        toast.error(result.message);
-      }
-    });
-  }
-
-  function onDeleteConfirmed() {
-    if (!deleteId) return;
-    setBusyLabel(ui.deleting);
-    startTransition(async () => {
-      const result = await deleteMachineAction(deleteId);
-      if (result.success) toast.success(result.message);
-      else toast.error(result.message);
-      setDeleteId(null);
-    });
-  }
 
   return (
     <div className="space-y-4">
       {!readOnly ? (
         <div className="flex justify-end">
-          <Dialog open={open} onOpenChange={setOpen}>
-            <Button onClick={openCreate} disabled={pending}>
+          <Dialog open={crud.open} onOpenChange={crud.setOpen}>
+            <Button
+              onClick={() =>
+                crud.beginCreate(() => {
+                  setName("");
+                  setLocation("");
+                })
+              }
+              disabled={crud.pending}
+            >
               إضافة مكينة
             </Button>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>
-                  {editing ? "تعديل المكينة" : "إضافة مكينة"}
+                  {crud.editing ? "تعديل المكينة" : "إضافة مكينة"}
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-3">
@@ -112,7 +75,7 @@ export function MachinesManager({
                     id="machine-name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    disabled={pending}
+                    disabled={crud.pending}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -121,12 +84,19 @@ export function MachinesManager({
                     id="machine-location"
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
-                    disabled={pending}
+                    disabled={crud.pending}
                   />
                 </div>
                 <LoadingButton
-                  onClick={onSave}
-                  loading={pending}
+                  onClick={() => {
+                    const payload = { name, location: location || null };
+                    crud.runSave(() =>
+                      crud.editing
+                        ? updateMachineAction(crud.editing.id, payload)
+                        : createMachineAction(payload),
+                    );
+                  }}
+                  loading={crud.pending}
                   loadingText={ui.saving}
                   disabled={!name.trim()}
                 >
@@ -139,19 +109,19 @@ export function MachinesManager({
       ) : null}
 
       <ConfirmDialog
-        open={Boolean(deleteId)}
+        open={Boolean(crud.deleteId)}
         onOpenChange={(next) => {
-          if (!next) setDeleteId(null);
+          if (!next) crud.setDeleteId(null);
         }}
         title="حذف المكينة"
         description="هل أنت متأكد من حذف هذه المكينة؟"
         confirmLabel="حذف"
         destructive
-        loading={pending}
-        onConfirm={onDeleteConfirmed}
+        loading={crud.pending}
+        onConfirm={() => crud.runDelete(deleteMachineAction)}
       />
 
-      <BusyOverlay busy={pending && !open && !deleteId} label={busyLabel}>
+      <BusyOverlay busy={crud.tableBusy} label={crud.busyLabel}>
         <Table>
           <TableHeader>
             <TableRow>
@@ -180,16 +150,21 @@ export function MachinesManager({
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => openEdit(m)}
-                        disabled={pending}
+                        onClick={() =>
+                          crud.beginEdit(m, (row) => {
+                            setName(row.name);
+                            setLocation(row.location ?? "");
+                          })
+                        }
+                        disabled={crud.pending}
                       >
                         تعديل
                       </Button>
                       <Button
                         variant="destructive"
                         size="sm"
-                        disabled={pending}
-                        onClick={() => setDeleteId(m.id)}
+                        disabled={crud.pending}
+                        onClick={() => crud.setDeleteId(m.id)}
                       >
                         حذف
                       </Button>

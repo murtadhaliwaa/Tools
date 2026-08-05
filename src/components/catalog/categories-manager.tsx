@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
+import { useState } from "react";
 import {
   createCategoryAction,
   deleteCategoryAction,
@@ -27,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useCrudManager } from "@/hooks/use-crud-manager";
 import { ui } from "@/lib/ui";
 
 type CategoryRow = { id: string; name: string; _count: { items: number } };
@@ -36,62 +36,23 @@ export function CategoriesManager({
 }: {
   categories: CategoryRow[];
 }) {
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<CategoryRow | null>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const crud = useCrudManager<CategoryRow>();
   const [name, setName] = useState("");
-  const [pending, startTransition] = useTransition();
-  const [busyLabel, setBusyLabel] = useState<string>(ui.saving);
-
-  function openCreate() {
-    setEditing(null);
-    setName("");
-    setOpen(true);
-  }
-
-  function openEdit(row: CategoryRow) {
-    setEditing(row);
-    setName(row.name);
-    setOpen(true);
-  }
-
-  function onSave() {
-    setBusyLabel(ui.saving);
-    startTransition(async () => {
-      const result = editing
-        ? await updateCategoryAction(editing.id, { name })
-        : await createCategoryAction({ name });
-      if (result.success) {
-        toast.success(result.message);
-        setOpen(false);
-      } else {
-        toast.error(result.message);
-      }
-    });
-  }
-
-  function onDeleteConfirmed() {
-    if (!deleteId) return;
-    setBusyLabel(ui.deleting);
-    startTransition(async () => {
-      const result = await deleteCategoryAction(deleteId);
-      if (result.success) toast.success(result.message);
-      else toast.error(result.message);
-      setDeleteId(null);
-    });
-  }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Dialog open={open} onOpenChange={setOpen}>
-          <Button onClick={openCreate} disabled={pending}>
+        <Dialog open={crud.open} onOpenChange={crud.setOpen}>
+          <Button
+            onClick={() => crud.beginCreate(() => setName(""))}
+            disabled={crud.pending}
+          >
             إضافة تصنيف
           </Button>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {editing ? "تعديل التصنيف" : "إضافة تصنيف"}
+                {crud.editing ? "تعديل التصنيف" : "إضافة تصنيف"}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
@@ -101,12 +62,18 @@ export function CategoriesManager({
                   id="category-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  disabled={pending}
+                  disabled={crud.pending}
                 />
               </div>
               <LoadingButton
-                onClick={onSave}
-                loading={pending}
+                onClick={() =>
+                  crud.runSave(() =>
+                    crud.editing
+                      ? updateCategoryAction(crud.editing.id, { name })
+                      : createCategoryAction({ name }),
+                  )
+                }
+                loading={crud.pending}
                 loadingText={ui.saving}
                 disabled={!name.trim()}
               >
@@ -118,19 +85,19 @@ export function CategoriesManager({
       </div>
 
       <ConfirmDialog
-        open={Boolean(deleteId)}
+        open={Boolean(crud.deleteId)}
         onOpenChange={(next) => {
-          if (!next) setDeleteId(null);
+          if (!next) crud.setDeleteId(null);
         }}
         title="حذف التصنيف"
         description="هل أنت متأكد من حذف هذا التصنيف؟"
         confirmLabel="حذف"
         destructive
-        loading={pending}
-        onConfirm={onDeleteConfirmed}
+        loading={crud.pending}
+        onConfirm={() => crud.runDelete(deleteCategoryAction)}
       />
 
-      <BusyOverlay busy={pending && !open && !deleteId} label={busyLabel}>
+      <BusyOverlay busy={crud.tableBusy} label={crud.busyLabel}>
         <Table>
           <TableHeader>
             <TableRow>
@@ -155,16 +122,18 @@ export function CategoriesManager({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => openEdit(c)}
-                      disabled={pending}
+                      onClick={() =>
+                        crud.beginEdit(c, (row) => setName(row.name))
+                      }
+                      disabled={crud.pending}
                     >
                       تعديل
                     </Button>
                     <Button
                       variant="destructive"
                       size="sm"
-                      disabled={pending}
-                      onClick={() => setDeleteId(c.id)}
+                      disabled={crud.pending}
+                      onClick={() => crud.setDeleteId(c.id)}
                     >
                       حذف
                     </Button>

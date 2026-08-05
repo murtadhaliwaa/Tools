@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { listTransactions } from "@/services/items";
+import { listTransactions } from "@/services/transaction-queries";
 import {
   getItemFilterOptionsCached,
   getMachinesCached,
@@ -10,14 +10,10 @@ import { TransactionsTable } from "@/components/transactions/transactions-table"
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { param, parseDayEnd, type SearchParams } from "@/lib/search-params";
 import { cn } from "@/lib/utils";
 import { ui } from "@/lib/ui";
 
-type SearchParams = Promise<Record<string, string | string[] | undefined>>;
-
-function param(v: string | string[] | undefined) {
-  return Array.isArray(v) ? v[0] : v;
-}
 
 export default async function TransactionsPage({
   searchParams,
@@ -42,11 +38,12 @@ export default async function TransactionsPage({
       itemId,
       machineId,
       from: from ? new Date(from) : undefined,
-      to: to ? new Date(`${to}T23:59:59`) : undefined,
+      to: parseDayEnd(to),
     }),
     getItemFilterOptionsCached(profile.organizationId),
     getMachinesCached(profile.organizationId),
   ]);
+
 
   function hrefFor(nextPage: number) {
     const q = new URLSearchParams();

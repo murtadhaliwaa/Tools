@@ -7,7 +7,7 @@ import {
   loadMonthlyExportRows,
   loadRepairStatusExportRows,
 } from "@/actions/export-reports";
-import { ExportButtons } from "@/components/reports/export-csv-button";
+import { ExportButtons } from "@/components/reports/export-buttons";
 
 type Common = {
   filename: string;

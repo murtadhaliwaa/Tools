@@ -5,7 +5,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireUser } from "@/lib/auth";
 import { getDashboardStatsCached } from "@/lib/cache";
-import { getRecentTransactions } from "@/services/items";
+import { getRecentTransactions } from "@/services/dashboard";
 import { formatDateTime } from "@/lib/format";
 import { TransactionTypeBadge } from "@/components/shared/status-badge";
 import { PageHeader, PageShell } from "@/components/layout/page-header";

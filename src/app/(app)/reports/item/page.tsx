@@ -7,12 +7,8 @@ import { TransactionTypeBadge } from "@/components/shared/status-badge";
 import { ItemReportFilters } from "@/components/reports/item-report-filters";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { param, type SearchParams } from "@/lib/search-params";
 
-type SearchParams = Promise<Record<string, string | string[] | undefined>>;
-
-function param(v: string | string[] | undefined) {
-  return Array.isArray(v) ? v[0] : v;
-}
 
 export default async function ItemTimelinePage({
   searchParams,

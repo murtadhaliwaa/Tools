@@ -3,18 +3,14 @@ import { deriveItemStatus, quantityDeltaOnDelete } from "@/services/item-status"
 import { ItemStatus } from "@/types/domain";
 import type { Profile, TransactionType } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
-import {
-  createTransactionSchema,
-  type CreateTransactionInput,
-} from "@/lib/validations";
+import type { CreateTransactionInput } from "@/lib/validations";
 
 export { quantityDeltaOnDelete } from "@/services/item-status";
 
 export async function createTransaction(
-  input: CreateTransactionInput,
+  data: CreateTransactionInput,
   profile: Profile,
 ) {
-  const data = createTransactionSchema.parse(input);
   const organizationId = profile.organizationId;
 
   if (data.type === "ADDITION") {
@@ -38,6 +34,7 @@ export async function createTransaction(
           code: data.code || null,
           categoryId: data.categoryId,
           quantity: data.quantity,
+          notes: data.notes || null,
         },
       });
 

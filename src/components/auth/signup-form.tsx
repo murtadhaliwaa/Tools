@@ -64,7 +64,7 @@ export function SignupForm() {
             <p
               className={
                 state.success
-                  ? "text-sm text-emerald-700"
+                  ? "text-sm text-foreground"
                   : "text-sm text-destructive"
               }
             >

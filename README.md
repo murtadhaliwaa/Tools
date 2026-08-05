@@ -48,10 +48,12 @@ npm run dev
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `NEXT_PUBLIC_SITE_URL` — رابط الموقع المنشور
 3. Build Command: `prisma generate && next build --webpack`
-4. بعد أول نشر، نفّذ على قاعدة الإنتاج (مرة واحدة):
+4. بعد أول نشر (أو بعد migrate)، نفّذ على قاعدة الإنتاج مرة:
    ```bash
    npm run db:sql
    ```
+   يطبّق: CHECK لـ machineId + تريغرات نفس-المؤسسة + RLS + فهارس جزئية/trigram.
+   **الـ migration وحدها لا تكفي لهذه الطبقات.**
 5. Deploy
 
 ## الأوامر

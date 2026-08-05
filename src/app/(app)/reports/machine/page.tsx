@@ -14,12 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-type SearchParams = Promise<Record<string, string | string[] | undefined>>;
-
-function param(v: string | string[] | undefined) {
-  return Array.isArray(v) ? v[0] : v;
-}
+import { param, parseDayEnd, type SearchParams } from "@/lib/search-params";
 
 export default async function MachineReportPage({
   searchParams,
@@ -39,7 +34,7 @@ export default async function MachineReportPage({
         organizationId: profile.organizationId,
         machineId,
         from: from ? new Date(from) : undefined,
-        to: to ? new Date(`${to}T23:59:59`) : undefined,
+        to: parseDayEnd(to),
       })
     : null;
   const rows = report?.rows ?? [];

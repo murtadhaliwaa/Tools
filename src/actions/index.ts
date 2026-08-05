@@ -21,7 +21,6 @@ export {
 } from "@/actions/catalog";
 
 export {
-  updateUserRoleAction,
   toggleUserActiveAction,
   updateOrganizationSettingsAction,
   createUserAction,
