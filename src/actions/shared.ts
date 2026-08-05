@@ -22,11 +22,9 @@ export async function guardRate(prefix: string, limit = 8) {
   const result = await rateLimit(key, limit, 60_000);
   if (!result.ok) {
     const message =
-      result.reason === "misconfigured"
-        ? "خدمة الحماية غير جاهزة. تواصل مع المدير."
-        : result.reason === "unavailable"
-          ? "تعذّر التحقق من الحد الأمني مؤقتاً. حاول بعد لحظات."
-          : `محاولات كثيرة. حاول بعد ${result.retryAfterSec} ثانية`;
+      result.reason === "unavailable"
+        ? "تعذّر التحقق من الحد الأمني مؤقتاً. حاول بعد لحظات."
+        : `محاولات كثيرة. حاول بعد ${result.retryAfterSec} ثانية`;
     return { success: false as const, message };
   }
   return null;

@@ -205,7 +205,7 @@ describe("rateLimit", () => {
     expect(isAuthRatePrefix("export")).toBe(false);
   });
 
-  it("fails closed when strict and Upstash is missing", async () => {
+  it("falls back to memory when Upstash is missing even if strict", async () => {
     const prevUrl = process.env.UPSTASH_REDIS_REST_URL;
     const prevToken = process.env.UPSTASH_REDIS_REST_TOKEN;
     delete process.env.UPSTASH_REDIS_REST_URL;
@@ -214,8 +214,7 @@ describe("rateLimit", () => {
     const result = await rateLimit("login:1.2.3.4", 8, 60_000, {
       strict: true,
     });
-    expect(result.ok).toBe(false);
-    expect(result.reason).toBe("misconfigured");
+    expect(result.ok).toBe(true);
 
     if (prevUrl === undefined) delete process.env.UPSTASH_REDIS_REST_URL;
     else process.env.UPSTASH_REDIS_REST_URL = prevUrl;

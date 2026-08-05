@@ -40,7 +40,7 @@ export function isUpstashConfigured() {
   );
 }
 
-/** مسارات المصادقة الحساسة — في الإنتاج تتطلب Upstash (fail-closed) */
+/** مسارات المصادقة الحساسة — يُفضَّل Upstash في الإنتاج */
 export function isAuthRatePrefix(prefix: string) {
   return AUTH_RATE_PREFIXES.has(prefix);
 }
@@ -103,18 +103,27 @@ async function upstashRateLimit(
 export type RateLimitResult = {
   ok: boolean;
   retryAfterSec: number;
-  /** misconfigured = لا Upstash في إنتاج المصادقة؛ unavailable = فشل Redis؛ limited = تجاوز الحد */
-  reason?: "misconfigured" | "unavailable" | "limited";
+  /** unavailable = فشل Redis مع تفعيل fail-closed؛ limited = تجاوز الحد */
+  reason?: "unavailable" | "limited";
 };
 
 export type RateLimitOptions = {
-  /** true = لا تسقط لذاكرة العملية (إلزامي لمسارات المصادقة في الإنتاج) */
+  /**
+   * true = عند فشل Upstash لا نسقط للذاكرة (fail-closed).
+   * يُفعَّل تلقائياً لمسارات المصادقة في الإنتاج فقط إذا
+   * `AUTH_RATE_LIMIT_FAIL_CLOSED=true` وUpstash مضبوط.
+   */
   strict?: boolean;
 };
 
+function authFailClosedEnabled() {
+  return process.env.AUTH_RATE_LIMIT_FAIL_CLOSED?.trim() === "true";
+}
+
 /**
- * حد معدّل: Upstash إن توفر، وإلا ذاكرة العملية (إلا في الوضع الصارم).
- * مسارات login/signup/forgot/reset في الإنتاج تفشل مغلقة بدون Upstash.
+ * حد معدّل: Upstash إن توفر، وإلا ذاكرة العملية.
+ * للمصادقة في الإنتاج يُفضَّل Upstash (متعدد المثيلات). بدونها يعمل الدخول
+ * بحدّ محلي لكل مثيل — فعّل AUTH_RATE_LIMIT_FAIL_CLOSED=true لرفض الدخول عند تعطّل Redis.
  */
 export async function rateLimit(
   key: string,
@@ -123,12 +132,21 @@ export async function rateLimit(
   options?: RateLimitOptions,
 ): Promise<RateLimitResult> {
   const prefix = key.split(":")[0] ?? key;
-  const strict =
-    options?.strict === true ||
-    (isProductionRuntime() && isAuthRatePrefix(prefix));
+  const authStrictDefault =
+    isProductionRuntime() &&
+    isAuthRatePrefix(prefix) &&
+    isUpstashConfigured() &&
+    authFailClosedEnabled();
+  const strict = options?.strict === true || authStrictDefault;
 
-  if (strict && !isUpstashConfigured()) {
-    return { ok: false, retryAfterSec: 60, reason: "misconfigured" };
+  if (
+    isProductionRuntime() &&
+    isAuthRatePrefix(prefix) &&
+    !isUpstashConfigured()
+  ) {
+    console.error(
+      "[rate-limit] UPSTASH غير مضبوط — استخدام حدّ الذاكرة لمسار المصادقة",
+    );
   }
 
   const remote = await upstashRateLimit(key, limit, windowMs);
@@ -138,7 +156,7 @@ export async function rateLimit(
       : { ...remote, reason: "limited" };
   }
 
-  if (strict) {
+  if (strict && isUpstashConfigured()) {
     return { ok: false, retryAfterSec: 60, reason: "unavailable" };
   }
 

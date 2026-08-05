@@ -41,7 +41,7 @@ ALTER ROLE tool_tracker_app PASSWORD 'كلمة-مرور-قوية-عشوائية'
 - فعّل الحسابات الجديدة يدوياً من صفحة الحسابات.
 - أضف `NEXT_PUBLIC_SITE_URL` لروابط استعادة كلمة المرور.
 - استخدم Pooler مع `pgbouncer=true` ويفضّل `connection_limit=1` على Vercel.
-- أضف `UPSTASH_REDIS_REST_URL` و `UPSTASH_REDIS_REST_TOKEN` في الإنتاج — بدونها تُرفض login/signup/forgot/reset (fail-closed). التطوير المحلي يمكنه الاعتماد على ذاكرة العملية.
+- يُفضَّل `UPSTASH_REDIS_REST_URL` و `UPSTASH_REDIS_REST_TOKEN` في الإنتاج لحدّ معدّل موحّد عبر المثيلات. بدونها يعمل الدخول بحدّ ذاكرة لكل مثيل. لرفض المصادقة عند تعطّل Redis بعد ضبط Upstash: `AUTH_RATE_LIMIT_FAIL_CLOSED=true`.
 - CSP في الإنتاج بدون `unsafe-eval`؛ مسار `/auth/signout` يرفض الطلبات العابرة للمواقع (Sec-Fetch-Site / Origin).
 - بعد `prisma migrate deploy` على الإنتاج نفّذ: `npm run db:sql` (CHECK + سلامة المؤسسة + دور التطبيق + RLS/FORCE + فهارس). الـ migration وحدها لا تكفي. CI يشغّل `db:sql` كاملاً.
 

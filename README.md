@@ -51,7 +51,7 @@ npm run dev
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `NEXT_PUBLIC_SITE_URL` — رابط الموقع المنشور
    - `BOOTSTRAP_SECRET` — لمرة الإقلاع الأولى فقط (≥16)
-   - `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` — إلزامي للدخول في الإنتاج
+   - `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` — مُفضَّل لحدّ معدّل موحّد في الإنتاج (بدونها يعمل الدخول بحدّ محلي)
 3. Build Command: `prisma generate && next build --webpack`
 4. بعد أول نشر (أو بعد migrate)، نفّذ على قاعدة الإنتاج مرة:
    ```bash
