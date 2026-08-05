@@ -21,10 +21,13 @@ export async function guardRate(prefix: string, limit = 8) {
   const key = clientKeyFromHeaders(h, prefix);
   const result = await rateLimit(key, limit, 60_000);
   if (!result.ok) {
-    return {
-      success: false as const,
-      message: `محاولات كثيرة. حاول بعد ${result.retryAfterSec} ثانية`,
-    };
+    const message =
+      result.reason === "misconfigured"
+        ? "خدمة الحماية غير جاهزة. تواصل مع المدير."
+        : result.reason === "unavailable"
+          ? "تعذّر التحقق من الحد الأمني مؤقتاً. حاول بعد لحظات."
+          : `محاولات كثيرة. حاول بعد ${result.retryAfterSec} ثانية`;
+    return { success: false as const, message };
   }
   return null;
 }

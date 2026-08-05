@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import {
+  AuthError,
   clearRoleCookie,
   ensureProfile,
   syncRoleCookie,
@@ -20,6 +21,10 @@ import {
   guardRate,
   requireSiteUrl,
 } from "@/actions/shared";
+import {
+  isBootstrapPending,
+  verifyBootstrapSecret,
+} from "@/lib/bootstrap";
 
 export async function loginAction(
   _prev: ActionResult | null,
@@ -52,7 +57,17 @@ export async function loginAction(
     (data.user.user_metadata?.full_name as string | undefined) ??
     parsed.data.email.split("@")[0];
 
-  const profile = await ensureProfile(data.user.id, fullName);
+  let profile;
+  try {
+    profile = await ensureProfile(data.user.id, fullName);
+  } catch (err) {
+    await supabase.auth.signOut();
+    await clearRoleCookie();
+    if (err instanceof AuthError) {
+      return { success: false, message: err.message };
+    }
+    throw err;
+  }
   if (!profile.isActive) {
     await supabase.auth.signOut();
     await clearRoleCookie();
@@ -88,6 +103,19 @@ export async function signupAction(
   }
 
   const existingCount = await prisma.profile.count();
+  const bootstrapPending = isBootstrapPending(existingCount);
+  let bootstrapOk = false;
+
+  if (bootstrapPending) {
+    const check = verifyBootstrapSecret(
+      String(formData.get("bootstrapSecret") ?? ""),
+    );
+    if (!check.ok) {
+      return { success: false, message: check.message };
+    }
+    bootstrapOk = true;
+  }
+
   const orgs = await prisma.organization.findMany({
     orderBy: { createdAt: "asc" },
     take: 2,
@@ -102,7 +130,7 @@ export async function signupAction(
   }
 
   const org = orgs[0];
-  if (existingCount > 0 && org && !org.allowPublicSignup) {
+  if (!bootstrapPending && org && !org.allowPublicSignup) {
     return {
       success: false,
       message:
@@ -124,9 +152,20 @@ export async function signupAction(
   }
 
   if (data.user) {
-    const profile = await ensureProfile(data.user.id, parsed.data.fullName, {
-      activate: existingCount === 0,
-    });
+    let profile;
+    try {
+      profile = await ensureProfile(data.user.id, parsed.data.fullName, {
+        // أول مدير يُفعَّل عبر isFirst+bootstrapOk فقط — لا تفعيل عبر سباق الرمز
+        activate: false,
+        bootstrapOk,
+      });
+    } catch (err) {
+      await supabase.auth.signOut();
+      if (err instanceof AuthError) {
+        return { success: false, message: err.message };
+      }
+      throw err;
+    }
 
     if (!profile.isActive) {
       await supabase.auth.signOut();

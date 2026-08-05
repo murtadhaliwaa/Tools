@@ -16,7 +16,7 @@ import {
 
 const initial: ActionResult | null = null;
 
-export function SignupForm() {
+export function SignupForm({ needsBootstrap }: { needsBootstrap: boolean }) {
   const [state, action, pending] = useActionState(signupAction, initial);
 
   return (
@@ -24,8 +24,9 @@ export function SignupForm() {
       <CardHeader>
         <CardTitle className="text-2xl">إنشاء حساب</CardTitle>
         <CardDescription>
-          أول حساب يصبح مديراً. بعدها التسجيل مغلق إلا إذا فعّله المدير،
-          والحسابات الجديدة تحتاج موافقة.
+          {needsBootstrap
+            ? "إقلاع النظام: أول حساب يصبح مديراً ويتطلب رمز الإقلاع من متغيرات البيئة."
+            : "التسجيل مغلق إلا إذا فعّله المدير، والحسابات الجديدة تحتاج موافقة."}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -60,6 +61,22 @@ export function SignupForm() {
               8 أحرف على الأقل، مع حرف ورقم
             </p>
           </div>
+          {needsBootstrap ? (
+            <div className="space-y-2">
+              <Label htmlFor="bootstrapSecret">رمز الإقلاع</Label>
+              <Input
+                id="bootstrapSecret"
+                name="bootstrapSecret"
+                type="password"
+                required
+                autoComplete="off"
+                dir="ltr"
+              />
+              <p className="text-xs text-muted-foreground">
+                نفس قيمة BOOTSTRAP_SECRET في البيئة (16 حرفاً على الأقل)
+              </p>
+            </div>
+          ) : null}
           {state?.message ? (
             <p
               className={

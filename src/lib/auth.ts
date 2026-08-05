@@ -69,7 +69,7 @@ function getCachedProfile(userId: string) {
 export async function ensureProfile(
   userId: string,
   fullName: string,
-  options?: { activate?: boolean },
+  options?: { activate?: boolean; bootstrapOk?: boolean },
 ): Promise<Profile> {
   const existing = await getCachedProfile(userId);
   if (existing) {
@@ -98,6 +98,13 @@ export async function ensureProfile(
     let orgId = orgs[0]?.id;
     const profileCount = await tx.profile.count();
     const isFirst = profileCount === 0;
+
+    // أول مدير نشط فقط عبر مسار التسجيل مع BOOTSTRAP_SECRET — يمنع سباق Auth العام
+    if (isFirst && !options?.bootstrapOk) {
+      throw new AuthError(
+        "النظام غير مهيأ. سجّل أول مدير من صفحة التسجيل مع رمز الإقلاع.",
+      );
+    }
 
     if (!orgId) {
       if (!isFirst) {

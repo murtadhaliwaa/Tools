@@ -1,12 +1,44 @@
--- سياسات RLS لطبقة حماية إضافية على مستوى قاعدة البيانات
+-- سياسات RLS لطبقة حماية إضافية على مستوى قاعدة البيانات (خصوصاً PostgREST)
 --
 -- مهم جداً:
--- 1) التطبيق يستخدم Prisma عبر DATABASE_URL (غالباً كـ table owner) فيتجاوز RLS.
---    مصدر الحقيقة للأمان = طبقة التطبيق (requireUser/requireRole + organizationId).
--- 2) سياسات الكتابة هنا قد تختلف عن صلاحيات التطبيق: أمين العدة (KEEPER)
---    يستطيع إدارة المواد/المكينات عبر Server Actions — وهذا مقصود للمنتج الحالي.
---    سياسات item_write/machine_write أدناه أضيق (ADMIN) لحماية PostgREST فقط.
--- 3) لا تعتمد على هذا الملف وحده لعزل المؤسسات عند استخدام Prisma.
+-- 1) دور Prisma الموصى به: tool_tracker_app (انظر app-db-role.sql) — غير مالك/غير superuser.
+--    تحت FORCE RLS له سياسات FOR ALL صريحة (بدون JWT) بسبب PgBouncer.
+--    مصدر عزل المؤسسات للتطبيق = requireUser/requireRole + organizationId
+--    + تريغرات org-integrity.sql.
+-- 2) FORCE ROW LEVEL SECURITY يُخضع مالك الجدول للسياسات إن لم يكن BYPASSRLS/superuser.
+-- 3) سياسات الكتابة أدناه لـ authenticated: أمين العدة في التطبيق يدير الأدوات عبر Server Actions؛
+--    سياسات item_write/machine_write أضيق (ADMIN) لحماية PostgREST فقط.
+-- 4) لا تعتمد على هذا الملف وحده لعزل المؤسسات عبر Prisma.
+
+-- بيئة CI / Postgres محلي بدون Supabase: stub لـ auth.uid ودور authenticated
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    CREATE ROLE authenticated NOLOGIN;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    CREATE ROLE anon NOLOGIN;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'auth' AND p.proname = 'uid'
+  ) THEN
+    CREATE SCHEMA IF NOT EXISTS auth;
+    EXECUTE $fn$
+      CREATE FUNCTION auth.uid()
+      RETURNS uuid
+      LANGUAGE sql
+      STABLE
+      AS $body$
+        SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid
+      $body$
+    $fn$;
+  END IF;
+END
+$$;
 
 ALTER TABLE "Organization" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Profile" ENABLE ROW LEVEL SECURITY;
@@ -14,6 +46,13 @@ ALTER TABLE "Category" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Item" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Machine" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Transaction" ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE "Organization" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "Profile" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "Category" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "Item" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "Machine" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "Transaction" FORCE ROW LEVEL SECURITY;
 
 -- مساعدة: جلب organizationId للمستخدم الحالي
 CREATE OR REPLACE FUNCTION public.current_profile_org_id()
@@ -70,7 +109,6 @@ BEGIN
        OR NEW."organizationId" IS DISTINCT FROM public.current_profile_org_id() THEN
       RAISE EXCEPTION 'غير مسموح بتعديل صلاحيات الملف الشخصي';
     END IF;
-    -- المدير يقدر يعدّل الآخرين في مؤسسته فقط (ليس تصعيد نفسه عبر anon بدون مسار آمن)
     IF NEW.id = auth.uid() AND (
       NEW.role IS DISTINCT FROM OLD.role
       OR NEW."isActive" IS DISTINCT FROM OLD."isActive"
@@ -95,11 +133,14 @@ CREATE POLICY org_select ON "Organization"
   FOR SELECT TO authenticated
   USING (id = public.current_profile_org_id());
 
--- Category / Item / Machine: قراءة لكل أعضاء المؤسسة، كتابة للمدير
+-- Category / Item / Machine: قراءة نشطة لكل أعضاء المؤسسة، كتابة للمدير
 DROP POLICY IF EXISTS category_select ON "Category";
 CREATE POLICY category_select ON "Category"
   FOR SELECT TO authenticated
-  USING ("organizationId" = public.current_profile_org_id());
+  USING (
+    "organizationId" = public.current_profile_org_id()
+    AND "deletedAt" IS NULL
+  );
 
 DROP POLICY IF EXISTS category_write ON "Category";
 CREATE POLICY category_write ON "Category"
@@ -116,7 +157,10 @@ CREATE POLICY category_write ON "Category"
 DROP POLICY IF EXISTS item_select ON "Item";
 CREATE POLICY item_select ON "Item"
   FOR SELECT TO authenticated
-  USING ("organizationId" = public.current_profile_org_id());
+  USING (
+    "organizationId" = public.current_profile_org_id()
+    AND "deletedAt" IS NULL
+  );
 
 DROP POLICY IF EXISTS item_write ON "Item";
 CREATE POLICY item_write ON "Item"
@@ -133,7 +177,10 @@ CREATE POLICY item_write ON "Item"
 DROP POLICY IF EXISTS machine_select ON "Machine";
 CREATE POLICY machine_select ON "Machine"
   FOR SELECT TO authenticated
-  USING ("organizationId" = public.current_profile_org_id());
+  USING (
+    "organizationId" = public.current_profile_org_id()
+    AND "deletedAt" IS NULL
+  );
 
 DROP POLICY IF EXISTS machine_write ON "Machine";
 CREATE POLICY machine_write ON "Machine"
@@ -160,3 +207,41 @@ CREATE POLICY transaction_insert ON "Transaction"
     "organizationId" = public.current_profile_org_id()
     AND "performedById" = auth.uid()
   );
+
+-- مسار Prisma (tool_tracker_app): تحت FORCE RLS بدون سياق JWT/PgBouncer
+-- السماح الكامل لهذا الدور فقط — PostgREST يبقى مقيّداً بسياسات authenticated أعلاه
+DROP POLICY IF EXISTS app_all_organization ON "Organization";
+CREATE POLICY app_all_organization ON "Organization"
+  FOR ALL TO tool_tracker_app
+  USING (true)
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS app_all_profile ON "Profile";
+CREATE POLICY app_all_profile ON "Profile"
+  FOR ALL TO tool_tracker_app
+  USING (true)
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS app_all_category ON "Category";
+CREATE POLICY app_all_category ON "Category"
+  FOR ALL TO tool_tracker_app
+  USING (true)
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS app_all_item ON "Item";
+CREATE POLICY app_all_item ON "Item"
+  FOR ALL TO tool_tracker_app
+  USING (true)
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS app_all_machine ON "Machine";
+CREATE POLICY app_all_machine ON "Machine"
+  FOR ALL TO tool_tracker_app
+  USING (true)
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS app_all_transaction ON "Transaction";
+CREATE POLICY app_all_transaction ON "Transaction"
+  FOR ALL TO tool_tracker_app
+  USING (true)
+  WITH CHECK (true);

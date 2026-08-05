@@ -3,10 +3,31 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 /**
- * مسار يمسح جلسة Supabase بشكل موثوق على الـ Response
- * (من Server Components قد يفشل set للكوكيز قبل redirect).
+ * يسمح بنفس الأصل فقط — يمنع CSRF خروج قسري من موقع خارجي.
+ * GET يُستخدم لتنظيف الجلسة من الـ layout؛ POST للخروج الصريح إن لزم.
  */
-export async function GET(request: Request) {
+function isTrustedSignOutRequest(request: Request): boolean {
+  const url = new URL(request.url);
+  const site = request.headers.get("sec-fetch-site");
+  if (site === "cross-site") return false;
+
+  const origin = request.headers.get("origin");
+  if (origin) return origin === url.origin;
+
+  const referer = request.headers.get("referer");
+  if (referer) {
+    try {
+      return new URL(referer).origin === url.origin;
+    } catch {
+      return false;
+    }
+  }
+
+  // تنقّل مباشر من التطبيق غالباً same-origin / none بدون Origin
+  return site === "same-origin" || site === "same-site" || site === "none" || !site;
+}
+
+async function clearSessionAndRedirect(request: Request) {
   const url = new URL(request.url);
   const reason = url.searchParams.get("error") ?? "";
   const login = new URL("/login", url.origin);
@@ -40,4 +61,20 @@ export async function GET(request: Request) {
   });
 
   return response;
+}
+
+/** تنظيف جلسة منتهية / حساب معلّق — من داخل التطبيق فقط */
+export async function GET(request: Request) {
+  if (!isTrustedSignOutRequest(request)) {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+  return clearSessionAndRedirect(request);
+}
+
+/** خروج صريح بنفس الأصل */
+export async function POST(request: Request) {
+  if (!isTrustedSignOutRequest(request)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  return clearSessionAndRedirect(request);
 }

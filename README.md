@@ -17,9 +17,12 @@ npm run dev
 
 ### أول استخدام
 
-1. أنشئ حساباً من `/signup` — **أول مستخدم يصبح مديراً تلقائياً**
-2. في Supabase → Authentication → Providers → Email: عطّل "Confirm email" للتطوير فقط
-3. بعد إنشاء الحساب (اختياري لبيانات تجريبية):
+1. ضع في `.env.local` قيمة `BOOTSTRAP_SECRET` (16 حرفاً على الأقل)
+2. أنشئ الحساب الأول من `/signup` مع رمز الإقلاع — يصبح مديراً
+3. في Supabase → Authentication → Providers → Email:
+   - للتطوير: يمكن تعطيل "Confirm email"
+   - بعد الإقلاع (إنتاج): عطّل **Sign ups** العامة؛ أنشئ المستخدمين من لوحة المدير
+4. بعد إنشاء الحساب (اختياري لبيانات تجريبية):
    ```bash
    npm run db:seed
    ```
@@ -47,14 +50,18 @@ npm run dev
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `NEXT_PUBLIC_SITE_URL` — رابط الموقع المنشور
+   - `BOOTSTRAP_SECRET` — لمرة الإقلاع الأولى فقط (≥16)
+   - `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` — إلزامي للدخول في الإنتاج
 3. Build Command: `prisma generate && next build --webpack`
 4. بعد أول نشر (أو بعد migrate)، نفّذ على قاعدة الإنتاج مرة:
    ```bash
    npm run db:sql
    ```
-   يطبّق: CHECK لـ machineId + تريغرات نفس-المؤسسة + RLS + فهارس جزئية/trigram.
+   يطبّق: CHECK + تريغرات نفس-المؤسسة + دور `tool_tracker_app` + RLS/FORCE + فهارس.
    **الـ migration وحدها لا تكفي لهذه الطبقات.**
-5. Deploy
+5. (موصى به) عيّن كلمة مرور لـ `tool_tracker_app` وحدّث `DATABASE_URL` لهذا الدور؛ أبقِ `DIRECT_URL` للترحيلات كمالك
+6. أنشئ أول مدير عبر `/signup` + رمز الإقلاع، ثم عطّل Sign ups في Supabase Auth
+7. Deploy
 
 ## الأوامر
 
@@ -72,4 +79,6 @@ npm run dev
 ## ملاحظات أمان
 
 - لا ترفع ملفات `.env*` إلى Git
-- `SUPABASE_SERVICE_ROLE_KEY` للخادم فقط — لا تضعه في الكود أو الواجهة
+- `SUPABASE_SERVICE_ROLE_KEY` و `BOOTSTRAP_SECRET` للخادم فقط — لا تضعهما في الواجهة
+- بعد الإقلاع: عطّل التسجيل العام في Supabase Auth واترك `allowPublicSignup=false`
+- في الإنتاج: Upstash إلزامي لمسارات المصادقة (بدونها تُرفض المحاولات)

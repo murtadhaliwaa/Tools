@@ -2,6 +2,13 @@ type Bucket = { count: number; resetAt: number };
 
 const buckets = new Map<string, Bucket>();
 
+const AUTH_RATE_PREFIXES = new Set([
+  "login",
+  "signup",
+  "forgot",
+  "reset-password",
+]);
+
 function memoryRateLimit(
   key: string,
   limit: number,
@@ -26,14 +33,30 @@ function memoryRateLimit(
   return { ok: true, retryAfterSec: 0 };
 }
 
+export function isUpstashConfigured() {
+  return Boolean(
+    process.env.UPSTASH_REDIS_REST_URL?.trim() &&
+      process.env.UPSTASH_REDIS_REST_TOKEN?.trim(),
+  );
+}
+
+/** مسارات المصادقة الحساسة — في الإنتاج تتطلب Upstash (fail-closed) */
+export function isAuthRatePrefix(prefix: string) {
+  return AUTH_RATE_PREFIXES.has(prefix);
+}
+
+function isProductionRuntime() {
+  return process.env.NODE_ENV === "production";
+}
+
 /** Upstash Redis REST — يُستخدم تلقائياً إن وُجدت المتغيرات */
 async function upstashRateLimit(
   key: string,
   limit: number,
   windowMs: number,
 ): Promise<{ ok: boolean; retryAfterSec: number } | null> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
   if (!url || !token) return null;
 
   const redisKey = `rl:${key}`;
@@ -59,13 +82,10 @@ async function upstashRateLimit(
     }
 
     if (count > limit) {
-      const ttlRes = await fetch(
-        `${url}/ttl/${encodeURIComponent(redisKey)}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: "no-store",
-        },
-      );
+      const ttlRes = await fetch(`${url}/ttl/${encodeURIComponent(redisKey)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
       const ttlJson = (await ttlRes.json()) as { result?: number };
       const ttl = Number(ttlJson.result ?? windowSec);
       return {
@@ -80,21 +100,53 @@ async function upstashRateLimit(
   }
 }
 
+export type RateLimitResult = {
+  ok: boolean;
+  retryAfterSec: number;
+  /** misconfigured = لا Upstash في إنتاج المصادقة؛ unavailable = فشل Redis؛ limited = تجاوز الحد */
+  reason?: "misconfigured" | "unavailable" | "limited";
+};
+
+export type RateLimitOptions = {
+  /** true = لا تسقط لذاكرة العملية (إلزامي لمسارات المصادقة في الإنتاج) */
+  strict?: boolean;
+};
+
 /**
- * حد معدّل: Upstash إن توفر، وإلا ذاكرة العملية.
- * على Vercel متعدد الـ instances يُفضَّل ضبط UPSTASH_REDIS_REST_URL/TOKEN.
+ * حد معدّل: Upstash إن توفر، وإلا ذاكرة العملية (إلا في الوضع الصارم).
+ * مسارات login/signup/forgot/reset في الإنتاج تفشل مغلقة بدون Upstash.
  */
 export async function rateLimit(
   key: string,
   limit = 8,
   windowMs = 60_000,
-): Promise<{ ok: boolean; retryAfterSec: number }> {
+  options?: RateLimitOptions,
+): Promise<RateLimitResult> {
+  const prefix = key.split(":")[0] ?? key;
+  const strict =
+    options?.strict === true ||
+    (isProductionRuntime() && isAuthRatePrefix(prefix));
+
+  if (strict && !isUpstashConfigured()) {
+    return { ok: false, retryAfterSec: 60, reason: "misconfigured" };
+  }
+
   const remote = await upstashRateLimit(key, limit, windowMs);
-  if (remote) return remote;
-  return memoryRateLimit(key, limit, windowMs);
+  if (remote) {
+    return remote.ok
+      ? remote
+      : { ...remote, reason: "limited" };
+  }
+
+  if (strict) {
+    return { ok: false, retryAfterSec: 60, reason: "unavailable" };
+  }
+
+  const local = memoryRateLimit(key, limit, windowMs);
+  return local.ok ? local : { ...local, reason: "limited" };
 }
 
-/** توافق مع الاستدعاءات المتزامنة القديمة */
+/** توافق مع الاستدعاءات المتزامنة القديمة / الاختبارات (ذاكرة فقط) */
 export function rateLimitSync(
   key: string,
   limit = 8,
@@ -103,9 +155,17 @@ export function rateLimitSync(
   return memoryRateLimit(key, limit, windowMs);
 }
 
+/**
+ * مفتاح العميل: يفضّل IP الذي تضبطه المنصة (Vercel x-real-ip)،
+ * ثم آخر قفزة في x-forwarded-for (أقرب للبروكسي) لتقليل التزوير.
+ */
 export function clientKeyFromHeaders(headers: Headers, prefix: string) {
-  const forwarded = headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  const realIp = headers.get("x-real-ip");
-  const ip = forwarded || realIp || "unknown";
+  const realIp = headers.get("x-real-ip")?.trim();
+  const vercelForwarded = headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim();
+  const forwarded = headers.get("x-forwarded-for");
+  const forwardedLast = forwarded
+    ? forwarded.split(",").map((p) => p.trim()).filter(Boolean).at(-1)
+    : undefined;
+  const ip = realIp || vercelForwarded || forwardedLast || "unknown";
   return `${prefix}:${ip}`;
 }
