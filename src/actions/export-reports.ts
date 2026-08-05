@@ -11,6 +11,8 @@ import {
   exportMonthlySchema,
 } from "@/lib/validations";
 import {
+  EXPORT_ROW_LIMIT,
+  TIMELINE_EXPORT_LIMIT,
   getItemTimeline,
   getMachineReport,
   getMaterialReport,
@@ -20,6 +22,13 @@ import {
 import { TransactionTypeLabel } from "@/types/domain";
 import { guardRate } from "@/actions/shared";
 
+export type ExportResult = {
+  rows: ExportRow[];
+  truncated?: boolean;
+  limit?: number;
+  total?: number;
+};
+
 async function requireExportRate() {
   const limited = await guardRate("export", 20);
   if (limited) {
@@ -27,106 +36,136 @@ async function requireExportRate() {
   }
 }
 
-export async function loadMachineExportRows(input: unknown): Promise<ExportRow[]> {
+export async function loadMachineExportRows(
+  input: unknown,
+): Promise<ExportResult> {
   await requireExportRate();
   const { profile } = await requireUser();
   const parsed = exportMachineSchema.safeParse(input);
-  if (!parsed.success) return [];
-  const { rows } = await getMachineReport({
+  if (!parsed.success) return { rows: [] };
+  const report = await getMachineReport({
     organizationId: profile.organizationId,
     machineId: parsed.data.machineId,
     from: parsed.data.from ? new Date(parsed.data.from) : undefined,
     to: parseDayEnd(parsed.data.to),
+    page: 1,
+    pageSize: EXPORT_ROW_LIMIT,
   });
-  return rows.map((r) => [
-    r.item.name,
-    r.item.code,
-    formatDateTime(r.createdAt),
-    r.performedBy.fullName,
-    r.notes,
-  ]);
+  return {
+    rows: report.rows.map((r) => [
+      r.item.name,
+      r.item.code,
+      formatDateTime(r.createdAt),
+      r.performedBy.fullName,
+      r.notes,
+    ]),
+    truncated: report.truncated,
+    limit: report.limit,
+    total: report.total,
+  };
 }
 
 export async function loadItemTimelineExportRows(
   input: unknown,
-): Promise<ExportRow[]> {
+): Promise<ExportResult> {
   await requireExportRate();
   const { profile } = await requireUser();
   const parsed = exportItemSchema.safeParse(input);
-  if (!parsed.success) return [];
+  if (!parsed.success) return { rows: [] };
   const timeline = await getItemTimeline({
     organizationId: profile.organizationId,
     itemId: parsed.data.itemId,
+    page: 1,
+    pageSize: TIMELINE_EXPORT_LIMIT,
   });
-  return timeline.map((t) => [
-    TransactionTypeLabel[t.type],
-    t.machine?.name,
-    t.performedBy.fullName,
-    formatDateTime(t.createdAt),
-    t.notes,
-  ]);
+  return {
+    rows: timeline.rows.map((t) => [
+      TransactionTypeLabel[t.type],
+      t.machine?.name,
+      t.performedBy.fullName,
+      formatDateTime(t.createdAt),
+      t.notes,
+    ]),
+    truncated: timeline.truncated,
+    limit: timeline.limit,
+    total: timeline.total,
+  };
 }
 
 export async function loadMaterialExportRows(
   input: unknown,
-): Promise<ExportRow[]> {
+): Promise<ExportResult> {
   await requireExportRate();
   const { profile } = await requireUser();
   const parsed = exportMaterialSchema.safeParse(input);
-  if (!parsed.success) return [];
+  if (!parsed.success) return { rows: [] };
   const report = await getMaterialReport({
     organizationId: profile.organizationId,
     itemId: parsed.data.itemId,
     from: parsed.data.from ? new Date(parsed.data.from) : undefined,
     to: parseDayEnd(parsed.data.to),
+    page: 1,
+    pageSize: EXPORT_ROW_LIMIT,
   });
-  if (!report) return [];
-  return report.rows.map((r) => [
-    TransactionTypeLabel[r.type],
-    r.machine?.name,
-    r.performedBy.fullName,
-    formatDateTime(r.createdAt),
-    r.notes,
-  ]);
+  if (!report) return { rows: [] };
+  return {
+    rows: report.rows.map((r) => [
+      TransactionTypeLabel[r.type],
+      r.machine?.name,
+      r.performedBy.fullName,
+      formatDateTime(r.createdAt),
+      r.notes,
+    ]),
+    truncated: report.truncated,
+    limit: report.limit,
+    total: report.total,
+  };
 }
 
-export async function loadRepairStatusExportRows(): Promise<ExportRow[]> {
+export async function loadRepairStatusExportRows(): Promise<ExportResult> {
   await requireExportRate();
   const { profile } = await requireUser();
-  const { rows } = await getRepairStatusReport(profile.organizationId, {
+  const report = await getRepairStatusReport(profile.organizationId, {
     page: 1,
-    pageSize: 100,
+    pageSize: EXPORT_ROW_LIMIT,
   });
-  return rows.map((r) => [
-    r.name,
-    r.code,
-    r.categoryName,
-    r.since ? formatDateTime(r.since) : "",
-  ]);
+  return {
+    rows: report.rows.map((r) => [
+      r.name,
+      r.code,
+      r.categoryName,
+      r.since ? formatDateTime(r.since) : "",
+    ]),
+    truncated: report.total > report.rows.length,
+    limit: report.pageSize,
+    total: report.total,
+  };
 }
 
 export async function loadMonthlyExportRows(
   input: unknown,
-): Promise<ExportRow[]> {
+): Promise<ExportResult> {
   await requireExportRate();
   const { profile } = await requireRole(["ADMIN"]);
   const parsed = exportMonthlySchema.safeParse(input);
-  if (!parsed.success) return [];
+  if (!parsed.success) return { rows: [] };
   const summary = await getMonthlySummary({
     organizationId: profile.organizationId,
     year: parsed.data.year,
     month: parsed.data.month,
   });
-  return [
-    ...Object.entries(summary.byType).map(([type, count]) => [
-      "النوع",
-      TransactionTypeLabel[type as keyof typeof TransactionTypeLabel] ?? type,
-      count,
-    ]),
-    ...Object.entries(summary.byCategory).map(([name, count]) => [
-      "التصنيف",
-      name,
-      count,
-    ]),
-  ];
+  return {
+    rows: [
+      ...Object.entries(summary.byType).map(([type, count]) => [
+        "النوع",
+        TransactionTypeLabel[type as keyof typeof TransactionTypeLabel] ?? type,
+        count,
+      ]),
+      ...Object.entries(summary.byCategory).map(([name, count]) => [
+        "التصنيف",
+        name,
+        count,
+      ]),
+    ],
+  };
 }

@@ -1,11 +1,12 @@
 import { requireUser } from "@/lib/auth";
-import { getItemFilterOptionsCached } from "@/lib/cache";
-import { getMaterialReport } from "@/services/reports";
+import { getItemFilterOptionById } from "@/services/catalog";
+import { getMaterialReport, REPORT_PAGE_SIZE } from "@/services/reports";
 import { formatDateTime } from "@/lib/format";
 import { TransactionTypeLabel } from "@/types/domain";
 import { MaterialReportExport } from "@/components/reports/report-export-buttons";
 import { MaterialReportFilters } from "@/components/reports/material-report-filters";
 import { StatusBadge, TransactionTypeBadge } from "@/components/shared/status-badge";
+import { PagePagination } from "@/components/shared/page-pagination";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -16,7 +17,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { param, parseDayEnd, type SearchParams } from "@/lib/search-params";
+import {
+  param,
+  parseDayEnd,
+  parsePage,
+  type SearchParams,
+} from "@/lib/search-params";
 
 const TYPE_ORDER = [
   "ADDITION",
@@ -36,32 +42,51 @@ export default async function MaterialReportPage({
   const itemId = param(sp.itemId);
   const from = param(sp.from);
   const to = param(sp.to);
+  const page = parsePage(sp.page);
 
-  const items = await getItemFilterOptionsCached(profile.organizationId);
+  const [report, initialItem] = await Promise.all([
+    itemId
+      ? getMaterialReport({
+          organizationId: profile.organizationId,
+          itemId,
+          from: from ? new Date(from) : undefined,
+          to: parseDayEnd(to),
+          page,
+          pageSize: REPORT_PAGE_SIZE,
+        })
+      : Promise.resolve(null),
+    itemId
+      ? getItemFilterOptionById(profile.organizationId, itemId)
+      : Promise.resolve(null),
+  ]);
 
-  const report = itemId
-    ? await getMaterialReport({
-        organizationId: profile.organizationId,
-        itemId,
-        from: from ? new Date(from) : undefined,
-        to: parseDayEnd(to),
-      })
-    : null;
+  const itemName = report?.item.name ?? initialItem?.name ?? "";
 
-  const itemName = report?.item.name ?? "";
+  function hrefFor(nextPage: number) {
+    const q = new URLSearchParams();
+    q.set("page", String(nextPage));
+    if (itemId) q.set("itemId", itemId);
+    if (from) q.set("from", from);
+    if (to) q.set("to", to);
+    return `/reports/material?${q.toString()}`;
+  }
 
   return (
     <PageShell>
       <PageHeader
         title="تقرير مادة"
-        description="حالة المادة وحركاتها خلال الفترة المحددة"
+        description={
+          report
+            ? `${report.total} حركة — حالة المادة خلال الفترة`
+            : "حالة المادة وحركاتها خلال الفترة المحددة"
+        }
         actions={
           itemId ? (
             <MaterialReportExport
               filename={`material-report-${itemName || "item"}`}
               title={`تقرير مادة — ${itemName}`}
               sheetName="مادة"
-              enabled={Boolean(report && report.rows.length > 0)}
+              enabled={Boolean(report && report.total > 0)}
               itemId={itemId}
               from={from}
               to={to}
@@ -70,19 +95,13 @@ export default async function MaterialReportPage({
         }
       />
 
-      {report?.truncated ? (
-        <p className="text-sm text-muted-foreground">
-          تم عرض أول {report.limit} حركة فقط. قلّص الفترة الزمنية لعرض الباقي.
-        </p>
-      ) : null}
-
       <Card>
         <CardHeader>
           <CardTitle className="text-base">اختيار المادة والفترة</CardTitle>
         </CardHeader>
         <CardContent>
           <MaterialReportFilters
-            items={items}
+            initialItem={initialItem}
             initial={{ itemId, from, to }}
           />
         </CardContent>
@@ -198,6 +217,12 @@ export default async function MaterialReportPage({
               </Table>
             </CardContent>
           </Card>
+
+          <PagePagination
+            page={report.page}
+            totalPages={report.totalPages}
+            hrefFor={hrefFor}
+          />
         </>
       ) : (
         <Card>

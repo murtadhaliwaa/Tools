@@ -1,5 +1,8 @@
 import { requireAdminPage } from "@/lib/auth";
-import { getMonthlySummary, getTopIssuedItems } from "@/services/reports";
+import {
+  getMonthlySummaryCached,
+  getTopIssuedItemsCached,
+} from "@/lib/cache";
 import { TransactionTypeLabel } from "@/types/domain";
 import { MonthlyReportExport } from "@/components/reports/report-export-buttons";
 import { MonthlyCharts } from "@/components/reports/monthly-charts";
@@ -37,12 +40,8 @@ export default async function MonthlyReportPage({
   const { year, month } = parseYearMonth(param(sp.year), param(sp.month));
 
   const [summary, topIssued] = await Promise.all([
-    getMonthlySummary({
-      organizationId: profile.organizationId,
-      year,
-      month,
-    }),
-    getTopIssuedItems(profile.organizationId, 8),
+    getMonthlySummaryCached(profile.organizationId, year, month),
+    getTopIssuedItemsCached(profile.organizationId, 8),
   ]);
 
   const typeRows = Object.entries(summary.byType);

@@ -1,10 +1,8 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { listTransactions } from "@/services/transaction-queries";
-import {
-  getItemFilterOptionsCached,
-  getMachinesCached,
-} from "@/lib/cache";
+import { getItemFilterOptionById } from "@/services/catalog";
+import { getMachinesCached } from "@/lib/cache";
 import { TransactionsFilters } from "@/components/transactions/transactions-filters";
 import { TransactionsTable } from "@/components/transactions/transactions-table";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
@@ -29,7 +27,7 @@ export default async function TransactionsPage({
   const from = param(sp.from);
   const to = param(sp.to);
 
-  const [result, items, machines] = await Promise.all([
+  const [result, machines, initialItem] = await Promise.all([
     listTransactions({
       organizationId: profile.organizationId,
       page,
@@ -40,8 +38,10 @@ export default async function TransactionsPage({
       from: from ? new Date(from) : undefined,
       to: parseDayEnd(to),
     }),
-    getItemFilterOptionsCached(profile.organizationId),
     getMachinesCached(profile.organizationId),
+    itemId
+      ? getItemFilterOptionById(profile.organizationId, itemId)
+      : Promise.resolve(null),
   ]);
 
 
@@ -74,8 +74,8 @@ export default async function TransactionsPage({
         </CardHeader>
         <CardContent>
           <TransactionsFilters
-            items={items}
             machines={machines}
+            initialItem={initialItem}
             initial={{ type, itemId, machineId, from, to }}
           />
         </CardContent>

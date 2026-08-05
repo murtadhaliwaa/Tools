@@ -18,3 +18,8 @@ export function parseDayStart(dateYmd: string | undefined): Date | undefined {
   if (!dateYmd) return undefined;
   return new Date(`${dateYmd}T00:00:00`);
 }
+
+/** رقم صفحة من searchParams — افتراضي 1 */
+export function parsePage(v: string | string[] | undefined): number {
+  return Math.max(1, Number(param(v) ?? "1") || 1);
+}

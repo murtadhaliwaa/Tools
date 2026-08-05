@@ -15,6 +15,11 @@ export type TransactionFormItem = {
   hasOutstandingIssue: boolean;
 };
 
+/**
+ * بحث أدوات لنموذج الحركة.
+ * يحدّ المرشّحين أولاً (LIMIT) ثم يجمع outstanding مرة واحدة لتلك المعرّفات —
+ * بدل استعلام فرعي مرتبط لكل صف على كامل تاريخ الحركات.
+ */
 export async function getItemsForTransactionForm(
   organizationId: string,
   options?: { query?: string; limit?: number },
@@ -35,38 +40,56 @@ export async function getItemsForTransactionForm(
       outstanding: bigint;
     }>
   >`
+    WITH matched AS (
+      SELECT
+        i.id,
+        i.name,
+        i.code,
+        i.quantity,
+        i."categoryId"
+      FROM "Item" i
+      WHERE i."organizationId" = ${organizationId}
+        AND i."deletedAt" IS NULL
+        AND (
+          i.name ILIKE ${pattern}
+          OR COALESCE(i.code, '') ILIKE ${pattern}
+        )
+      ORDER BY i.name ASC
+      LIMIT ${limit}
+    ),
+    outstanding AS (
+      SELECT
+        tr."itemId",
+        (
+          COUNT(*) FILTER (WHERE tr.type = 'ISSUE')
+          - COUNT(*) FILTER (WHERE tr.type = 'RETURN_FROM_MACHINE')
+        )::bigint AS outstanding
+      FROM "Transaction" tr
+      INNER JOIN matched m ON m.id = tr."itemId"
+      WHERE tr.type IN ('ISSUE', 'RETURN_FROM_MACHINE')
+      GROUP BY tr."itemId"
+    )
     SELECT
-      i.id,
-      i.name,
-      i.code,
-      i.quantity,
+      m.id,
+      m.name,
+      m.code,
+      m.quantity,
       c.name AS category_name,
       t.type AS last_type,
-      m.name AS machine_name,
-      (
-        SELECT COUNT(*) FILTER (WHERE tr.type = 'ISSUE')
-             - COUNT(*) FILTER (WHERE tr.type = 'RETURN_FROM_MACHINE')
-        FROM "Transaction" tr
-        WHERE tr."itemId" = i.id
-      )::bigint AS outstanding
-    FROM "Item" i
-    INNER JOIN "Category" c ON c.id = i."categoryId"
+      mch.name AS machine_name,
+      COALESCE(o.outstanding, 0)::bigint AS outstanding
+    FROM matched m
+    INNER JOIN "Category" c ON c.id = m."categoryId"
     LEFT JOIN LATERAL (
       SELECT tr.type, tr."machineId"
       FROM "Transaction" tr
-      WHERE tr."itemId" = i.id
+      WHERE tr."itemId" = m.id
       ORDER BY tr."createdAt" DESC
       LIMIT 1
     ) t ON true
-    LEFT JOIN "Machine" m ON m.id = t."machineId"
-    WHERE i."organizationId" = ${organizationId}
-      AND i."deletedAt" IS NULL
-      AND (
-        i.name ILIKE ${pattern}
-        OR COALESCE(i.code, '') ILIKE ${pattern}
-      )
-    ORDER BY i.name ASC
-    LIMIT ${limit}
+    LEFT JOIN "Machine" mch ON mch.id = t."machineId"
+    LEFT JOIN outstanding o ON o."itemId" = m.id
+    ORDER BY m.name ASC
   `;
 
   return rows.map((row) => {

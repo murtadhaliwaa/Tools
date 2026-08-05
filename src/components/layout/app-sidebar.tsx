@@ -45,7 +45,7 @@ export function AppSidebar({
             <Link
               key={item.href}
               href={item.href}
-              prefetch
+              prefetch={item.prefetch !== false}
               className={cn(
                 "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors",
                 active

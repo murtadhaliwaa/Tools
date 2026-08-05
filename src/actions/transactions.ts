@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireRole, requireUser } from "@/lib/auth";
-import { bustItemOptionsCache } from "@/lib/cache";
+import { bustItemOptionsCache, bustReportsCache } from "@/lib/cache";
 import { prisma } from "@/lib/db";
 import {
   createTransactionSchema,
@@ -56,6 +56,7 @@ export async function createTransactionAction(
     revalidatePath("/items");
     revalidatePath("/reports");
     bustItemOptionsCache(profile.organizationId);
+    bustReportsCache(profile.organizationId);
     return { success: true, message: "تم تسجيل الحركة بنجاح" };
   } catch (error) {
     return toActionError(error);
@@ -145,6 +146,7 @@ export async function deleteTransactionAction(
     });
 
     bustItemOptionsCache(profile.organizationId);
+    bustReportsCache(profile.organizationId);
     revalidatePath("/transactions");
     revalidatePath("/items");
     revalidatePath("/dashboard");

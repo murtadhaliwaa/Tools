@@ -14,6 +14,7 @@ export const CACHE_TAGS = {
   itemOptions: (orgId: string) => `item-options-${orgId}`,
   formItems: (orgId: string) => `form-items-${orgId}`,
   users: (orgId: string) => `users-${orgId}`,
+  reports: (orgId: string) => `reports-${orgId}`,
 } as const;
 
 /** خيارات فلتر التصنيفات — أسماء فقط */
@@ -62,21 +63,6 @@ export function getMachinesAdminCached(organizationId: string) {
   )(organizationId);
 }
 
-/** خيارات فلتر الأدوات — أسماء فقط، بدون حالة */
-export function getItemFilterOptionsCached(organizationId: string) {
-  return unstable_cache(
-    async (orgId: string) =>
-      prisma.item.findMany({
-        where: { organizationId: orgId, deletedAt: null },
-        select: { id: true, name: true, code: true },
-        orderBy: { name: "asc" },
-        take: 500,
-      }),
-    [`item-filter-options`],
-    { revalidate: 120, tags: [CACHE_TAGS.itemOptions(organizationId)] },
-  )(organizationId);
-}
-
 /** أدوات نموذج الحركة مع الحالة — كاش قصير */
 export function getFormItemsCached(organizationId: string) {
   return unstable_cache(
@@ -105,6 +91,34 @@ export function getUsersCached(organizationId: string) {
   )(organizationId);
 }
 
+/** ملخص شهري — يُبطل عند أي كتابة حركة */
+export function getMonthlySummaryCached(
+  organizationId: string,
+  year: number,
+  month: number,
+) {
+  return unstable_cache(
+    async (orgId: string, y: number, m: number) => {
+      const { getMonthlySummary } = await import("@/services/reports");
+      return getMonthlySummary({ organizationId: orgId, year: y, month: m });
+    },
+    [`monthly-summary`, String(year), String(month)],
+    { revalidate: 120, tags: [CACHE_TAGS.reports(organizationId)] },
+  )(organizationId, year, month);
+}
+
+/** أكثر الأدوات صرفاً (للرسوم) */
+export function getTopIssuedItemsCached(organizationId: string, limit = 8) {
+  return unstable_cache(
+    async (orgId: string, take: number) => {
+      const { getTopIssuedItems } = await import("@/services/reports");
+      return getTopIssuedItems(orgId, take);
+    },
+    [`top-issued`, String(limit)],
+    { revalidate: 120, tags: [CACHE_TAGS.reports(organizationId)] },
+  )(organizationId, limit);
+}
+
 export function bustCatalogCache(organizationId: string) {
   revalidateTag(CACHE_TAGS.categories(organizationId), "max");
   revalidateTag(CACHE_TAGS.machines(organizationId), "max");
@@ -113,6 +127,10 @@ export function bustCatalogCache(organizationId: string) {
 export function bustItemOptionsCache(organizationId: string) {
   revalidateTag(CACHE_TAGS.itemOptions(organizationId), "max");
   revalidateTag(CACHE_TAGS.formItems(organizationId), "max");
+}
+
+export function bustReportsCache(organizationId: string) {
+  revalidateTag(CACHE_TAGS.reports(organizationId), "max");
 }
 
 export function bustUsersCache(organizationId: string) {

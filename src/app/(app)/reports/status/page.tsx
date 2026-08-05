@@ -1,13 +1,11 @@
-import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getRepairStatusReport } from "@/services/reports";
 import { formatDateTime } from "@/lib/format";
 import { RepairStatusExport } from "@/components/reports/report-export-buttons";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { PagePagination } from "@/components/shared/page-pagination";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { Card, CardContent } from "@/components/ui/card";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -16,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { param, type SearchParams } from "@/lib/search-params";
+import { parsePage, type SearchParams } from "@/lib/search-params";
 
 export default async function StatusReportPage({
   searchParams,
@@ -25,8 +23,8 @@ export default async function StatusReportPage({
 }) {
   const { profile } = await requireUser();
   const sp = await searchParams;
-  const page = Math.max(1, Number(param(sp.page) ?? "1") || 1);
-  const { rows, total, pageSize } = await getRepairStatusReport(
+  const page = parsePage(sp.page);
+  const { rows, total, pageSize, page: currentPage } = await getRepairStatusReport(
     profile.organizationId,
     { page, pageSize: 50 },
   );
@@ -84,37 +82,11 @@ export default async function StatusReportPage({
         </CardContent>
       </Card>
 
-      {totalPages > 1 ? (
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
-            صفحة {page} من {totalPages}
-          </p>
-          <div className="flex gap-2">
-            <Link
-              href={page > 1 ? `/reports/status?page=${page - 1}` : "#"}
-              className={cn(
-                buttonVariants({ variant: "outline", size: "sm" }),
-                page <= 1 && "pointer-events-none opacity-50",
-              )}
-              aria-disabled={page <= 1}
-            >
-              السابق
-            </Link>
-            <Link
-              href={
-                page < totalPages ? `/reports/status?page=${page + 1}` : "#"
-              }
-              className={cn(
-                buttonVariants({ variant: "outline", size: "sm" }),
-                page >= totalPages && "pointer-events-none opacity-50",
-              )}
-              aria-disabled={page >= totalPages}
-            >
-              التالي
-            </Link>
-          </div>
-        </div>
-      ) : null}
+      <PagePagination
+        page={currentPage}
+        totalPages={totalPages}
+        hrefFor={(p) => `/reports/status?page=${p}`}
+      />
     </PageShell>
   );
 }

@@ -57,7 +57,7 @@ export function MobileNav({
                     <Link
                       key={item.href}
                       href={item.href}
-                      prefetch
+                      prefetch={item.prefetch !== false}
                       onClick={() => setOpen(false)}
                       className={cn(
                         "flex items-center gap-2 rounded-lg px-3 py-3 text-sm",

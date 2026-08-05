@@ -47,7 +47,7 @@ export default async function ReportsPage() {
       />
       <div className="grid gap-4 sm:grid-cols-2">
         {reports.map((report) => (
-          <Link key={report.href} href={report.href}>
+          <Link key={report.href} href={report.href} prefetch={false}>
             <Card className={ui.cardHover}>
               <CardHeader>
                 <CardTitle>{report.title}</CardTitle>

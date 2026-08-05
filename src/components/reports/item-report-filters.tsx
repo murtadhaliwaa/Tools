@@ -1,42 +1,32 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { FilterCombobox } from "@/components/shared/filter-combobox";
+import { useState } from "react";
 import { LoadingButton } from "@/components/shared/loading-button";
+import {
+  ServerItemCombobox,
+  type ItemFilterOption,
+} from "@/components/shared/server-item-combobox";
 import { useFilterNavigation } from "@/hooks/use-filter-navigation";
 import { ui } from "@/lib/ui";
 
-type Option = { id: string; name: string; code?: string | null };
-
 export function ItemReportFilters({
-  items,
   initialItemId,
+  initialItem = null,
 }: {
-  items: Option[];
   initialItemId?: string;
+  initialItem?: ItemFilterOption | null;
 }) {
   const { pending, navigate } = useFilterNavigation("/reports/item");
   const [itemId, setItemId] = useState(initialItemId ?? "");
 
-  const options = useMemo(
-    () =>
-      items.map((i) => ({
-        value: i.id,
-        label: i.code ? `${i.name} (${i.code})` : i.name,
-        keywords: [i.name, i.code].filter(Boolean).join(" "),
-      })),
-    [items],
-  );
-
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-      <FilterCombobox
+      <ServerItemCombobox
         label="الأداة"
         value={itemId}
         onValueChange={setItemId}
-        options={options}
+        initialSelected={initialItem}
         placeholder="اختر أداة"
-        searchPlaceholder="ابحث بالاسم أو الرمز..."
         className="min-w-56 flex-1"
       />
       <LoadingButton

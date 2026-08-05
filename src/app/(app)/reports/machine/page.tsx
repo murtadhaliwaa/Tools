@@ -1,9 +1,10 @@
 import { requireUser } from "@/lib/auth";
 import { getMachinesCached } from "@/lib/cache";
-import { getMachineReport } from "@/services/reports";
+import { getMachineReport, REPORT_PAGE_SIZE } from "@/services/reports";
 import { formatDateTime } from "@/lib/format";
 import { MachineReportExport } from "@/components/reports/report-export-buttons";
 import { MachineReportFilters } from "@/components/reports/machine-report-filters";
+import { PagePagination } from "@/components/shared/page-pagination";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -14,7 +15,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { param, parseDayEnd, type SearchParams } from "@/lib/search-params";
+import {
+  param,
+  parseDayEnd,
+  parsePage,
+  type SearchParams,
+} from "@/lib/search-params";
 
 export default async function MachineReportPage({
   searchParams,
@@ -26,6 +32,7 @@ export default async function MachineReportPage({
   const machineId = param(sp.machineId);
   const from = param(sp.from);
   const to = param(sp.to);
+  const page = parsePage(sp.page);
 
   const machines = await getMachinesCached(profile.organizationId);
 
@@ -35,24 +42,39 @@ export default async function MachineReportPage({
         machineId,
         from: from ? new Date(from) : undefined,
         to: parseDayEnd(to),
+        page,
+        pageSize: REPORT_PAGE_SIZE,
       })
     : null;
   const rows = report?.rows ?? [];
 
   const machineName = machines.find((m) => m.id === machineId)?.name ?? "";
 
+  function hrefFor(nextPage: number) {
+    const q = new URLSearchParams();
+    q.set("page", String(nextPage));
+    if (machineId) q.set("machineId", machineId);
+    if (from) q.set("from", from);
+    if (to) q.set("to", to);
+    return `/reports/machine?${q.toString()}`;
+  }
+
   return (
     <PageShell>
       <PageHeader
         title="تقرير مكينة"
-        description="الأدوات المصروفة للمكينة المحددة"
+        description={
+          report
+            ? `${report.total} حركة صرف`
+            : "الأدوات المصروفة للمكينة المحددة"
+        }
         actions={
           machineId ? (
             <MachineReportExport
               filename={`machine-report-${machineName || "machine"}`}
               title={`تقرير مكينة — ${machineName}`}
               sheetName="مكينة"
-              enabled={rows.length > 0}
+              enabled={(report?.total ?? 0) > 0}
               machineId={machineId}
               from={from}
               to={to}
@@ -61,11 +83,6 @@ export default async function MachineReportPage({
         }
       />
 
-      {report?.truncated ? (
-        <p className="text-sm text-muted-foreground">
-          تم عرض أول {report.limit} حركة فقط. قلّص الفترة الزمنية لعرض الباقي.
-        </p>
-      ) : null}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">اختيار الفترة والمكينة</CardTitle>
@@ -92,10 +109,7 @@ export default async function MachineReportPage({
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell
-                    colSpan={4}
-                    className="text-muted-foreground"
-                  >
+                  <TableCell colSpan={4} className="text-muted-foreground">
                     {machineId
                       ? "لا توجد بيانات"
                       : "اختر مكينة ثم اضغط عرض التقرير"}
@@ -115,6 +129,14 @@ export default async function MachineReportPage({
           </Table>
         </CardContent>
       </Card>
+
+      {report ? (
+        <PagePagination
+          page={report.page}
+          totalPages={report.totalPages}
+          hrefFor={hrefFor}
+        />
+      ) : null}
     </PageShell>
   );
 }

@@ -17,6 +17,8 @@ export type NavItem = {
   label: string;
   icon: LucideIcon;
   roles?: Role[];
+  /** false = لا prefetch (صفحات ثقيلة مثل التقارير) */
+  prefetch?: boolean;
 };
 
 export const NAV_ITEMS: NavItem[] = [
@@ -26,7 +28,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/items", label: "الأدوات", icon: Package },
   { href: "/machines", label: "المكائن", icon: Cog },
   { href: "/categories", label: "التصنيفات", icon: Tags, roles: ["ADMIN"] },
-  { href: "/reports", label: "التقارير", icon: FileBarChart },
+  { href: "/reports", label: "التقارير", icon: FileBarChart, prefetch: false },
   { href: "/users", label: "الحسابات", icon: Users, roles: ["ADMIN"] },
   { href: "/settings", label: "الإعدادات", icon: Settings, roles: ["ADMIN"] },
 ];

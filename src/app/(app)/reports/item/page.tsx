@@ -1,14 +1,14 @@
 import { requireUser } from "@/lib/auth";
-import { getItemFilterOptionsCached } from "@/lib/cache";
-import { getItemTimeline } from "@/services/reports";
+import { getItemFilterOptionById } from "@/services/catalog";
+import { getItemTimeline, REPORT_PAGE_SIZE } from "@/services/reports";
 import { formatDateTime } from "@/lib/format";
 import { ItemTimelineExport } from "@/components/reports/report-export-buttons";
 import { TransactionTypeBadge } from "@/components/shared/status-badge";
 import { ItemReportFilters } from "@/components/reports/item-report-filters";
+import { PagePagination } from "@/components/shared/page-pagination";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { param, type SearchParams } from "@/lib/search-params";
-
+import { param, parsePage, type SearchParams } from "@/lib/search-params";
 
 export default async function ItemTimelinePage({
   searchParams,
@@ -18,30 +18,47 @@ export default async function ItemTimelinePage({
   const { profile } = await requireUser();
   const sp = await searchParams;
   const itemId = param(sp.itemId);
+  const page = parsePage(sp.page);
 
-  const items = await getItemFilterOptionsCached(profile.organizationId);
+  const [timeline, initialItem] = await Promise.all([
+    itemId
+      ? getItemTimeline({
+          organizationId: profile.organizationId,
+          itemId,
+          page,
+          pageSize: REPORT_PAGE_SIZE,
+        })
+      : Promise.resolve(null),
+    itemId
+      ? getItemFilterOptionById(profile.organizationId, itemId)
+      : Promise.resolve(null),
+  ]);
 
-  const timeline = itemId
-    ? await getItemTimeline({
-        organizationId: profile.organizationId,
-        itemId,
-      })
-    : [];
+  const itemName = initialItem?.name ?? "";
 
-  const itemName = items.find((i) => i.id === itemId)?.name ?? "";
+  function hrefFor(nextPage: number) {
+    const q = new URLSearchParams();
+    q.set("page", String(nextPage));
+    if (itemId) q.set("itemId", itemId);
+    return `/reports/item?${q.toString()}`;
+  }
 
   return (
     <PageShell>
       <PageHeader
         title="سجل أداة"
-        description="الخط الزمني الكامل لحركات الأداة"
+        description={
+          timeline
+            ? `${timeline.total} حركة`
+            : "الخط الزمني الكامل لحركات الأداة"
+        }
         actions={
           itemId ? (
             <ItemTimelineExport
               filename={`item-timeline-${itemName || "item"}`}
               title={`سجل أداة — ${itemName}`}
               sheetName="سجل"
-              enabled={timeline.length > 0}
+              enabled={(timeline?.total ?? 0) > 0}
               itemId={itemId}
             />
           ) : null
@@ -53,13 +70,16 @@ export default async function ItemTimelinePage({
           <CardTitle className="text-base">اختر الأداة</CardTitle>
         </CardHeader>
         <CardContent>
-          <ItemReportFilters items={items} initialItemId={itemId} />
+          <ItemReportFilters
+            initialItemId={itemId}
+            initialItem={initialItem}
+          />
         </CardContent>
       </Card>
 
       <Card>
         <CardContent className="p-6">
-          {timeline.length === 0 ? (
+          {!timeline || timeline.rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               {itemId
                 ? "لا توجد حركات لهذه الأداة"
@@ -67,7 +87,7 @@ export default async function ItemTimelinePage({
             </p>
           ) : (
             <ol className="relative space-y-6 border-s border-border ps-6">
-              {timeline.map((event) => (
+              {timeline.rows.map((event) => (
                 <li key={event.id} className="relative">
                   <span className="absolute -start-[1.4rem] top-1 size-3 rounded-full bg-primary" />
                   <div className="space-y-1">
@@ -93,6 +113,14 @@ export default async function ItemTimelinePage({
           )}
         </CardContent>
       </Card>
+
+      {timeline ? (
+        <PagePagination
+          page={timeline.page}
+          totalPages={timeline.totalPages}
+          hrefFor={hrefFor}
+        />
+      ) : null}
     </PageShell>
   );
 }

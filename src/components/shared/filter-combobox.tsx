@@ -18,6 +18,8 @@ export function FilterCombobox({
   searchPlaceholder = "ابحث...",
   emptyText = "لا توجد نتائج",
   className,
+  onSearchChange,
+  serverFilter = false,
 }: {
   label?: string;
   value: string;
@@ -27,6 +29,8 @@ export function FilterCombobox({
   searchPlaceholder?: string;
   emptyText?: string;
   className?: string;
+  onSearchChange?: (query: string) => void;
+  serverFilter?: boolean;
 }) {
   return (
     <div className={cn("space-y-1.5", className)}>
@@ -38,6 +42,8 @@ export function FilterCombobox({
         placeholder={placeholder}
         searchPlaceholder={searchPlaceholder}
         emptyText={emptyText}
+        onSearchChange={onSearchChange}
+        serverFilter={serverFilter}
       />
     </div>
   );

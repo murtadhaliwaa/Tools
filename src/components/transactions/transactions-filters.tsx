@@ -4,6 +4,10 @@ import { useMemo, useState } from "react";
 import { DateField } from "@/components/shared/date-field";
 import { FilterSelect } from "@/components/shared/filter-select";
 import { LoadingButton } from "@/components/shared/loading-button";
+import {
+  ServerItemCombobox,
+  type ItemFilterOption,
+} from "@/components/shared/server-item-combobox";
 import { useFilterNavigation } from "@/hooks/use-filter-navigation";
 import { TransactionTypeLabel } from "@/types/domain";
 import { ui } from "@/lib/ui";
@@ -11,11 +15,10 @@ import { ui } from "@/lib/ui";
 type Option = { id: string; name: string };
 
 export function TransactionsFilters({
-  items,
   machines,
   initial,
+  initialItem = null,
 }: {
-  items: Option[];
   machines: Option[];
   initial: {
     type?: string;
@@ -24,6 +27,7 @@ export function TransactionsFilters({
     from?: string;
     to?: string;
   };
+  initialItem?: ItemFilterOption | null;
 }) {
   const { pending, navigate } = useFilterNavigation("/transactions");
   const [type, setType] = useState(initial.type || "all");
@@ -43,14 +47,6 @@ export function TransactionsFilters({
     [],
   );
 
-  const itemOptions = useMemo(
-    () => [
-      { value: "all", label: "كل الأدوات" },
-      ...items.map((i) => ({ value: i.id, label: i.name })),
-    ],
-    [items],
-  );
-
   const machineOptions = useMemo(
     () => [
       { value: "all", label: "كل المكائن" },
@@ -68,11 +64,12 @@ export function TransactionsFilters({
         options={typeOptions}
         placeholder="كل الأنواع"
       />
-      <FilterSelect
+      <ServerItemCombobox
         label="الأداة"
         value={itemId}
         onValueChange={setItemId}
-        options={itemOptions}
+        initialSelected={initialItem}
+        allowAll
         placeholder="كل الأدوات"
       />
       <FilterSelect

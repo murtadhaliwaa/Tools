@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   deleteTransactionAction,
@@ -41,6 +41,140 @@ export type TransactionRow = {
   performedBy: { id: string; fullName: string };
 };
 
+function TransactionNotesDialog({
+  editing,
+  pending,
+  onOpenChange,
+  onSave,
+}: {
+  editing: TransactionRow | null;
+  pending: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSave: (notes: string) => void;
+}) {
+  const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    if (editing) setNotes(editing.notes ?? "");
+  }, [editing]);
+
+  return (
+    <Dialog
+      open={!!editing}
+      onOpenChange={(open) => {
+        if (!open && !pending) onOpenChange(false);
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>تعديل ملاحظات الحركة</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="tx-notes">الملاحظات</Label>
+            <Textarea
+              id="tx-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={4}
+              disabled={pending}
+            />
+          </div>
+          <LoadingButton
+            onClick={() => onSave(notes)}
+            loading={pending}
+            loadingText={ui.saving}
+          >
+            حفظ
+          </LoadingButton>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TransactionsRows({
+  rows,
+  canManage,
+  currentUserId,
+  pending,
+  onEditNotes,
+  onDelete,
+}: {
+  rows: TransactionRow[];
+  canManage: boolean;
+  currentUserId: string;
+  pending: boolean;
+  onEditNotes: (row: TransactionRow) => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>النوع</TableHead>
+          <TableHead>الأداة</TableHead>
+          <TableHead>المكينة</TableHead>
+          <TableHead>ملاحظات</TableHead>
+          <TableHead>بواسطة</TableHead>
+          <TableHead>التاريخ</TableHead>
+          <TableHead>إجراءات</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.length === 0 ? (
+          <TableRow>
+            <TableCell colSpan={7} className={ui.emptyCell}>
+              لا توجد نتائج
+            </TableCell>
+          </TableRow>
+        ) : (
+          rows.map((tx) => {
+            const canEditNotes =
+              canManage || tx.performedBy.id === currentUserId;
+            return (
+              <TableRow key={tx.id}>
+                <TableCell>
+                  <TransactionTypeBadge type={tx.type} />
+                </TableCell>
+                <TableCell>{tx.item.name}</TableCell>
+                <TableCell>{tx.machine?.name ?? "—"}</TableCell>
+                <TableCell className="max-w-[12rem] truncate text-sm text-muted-foreground">
+                  {tx.notes || "—"}
+                </TableCell>
+                <TableCell>{tx.performedBy.fullName}</TableCell>
+                <TableCell>{formatDateTime(tx.createdAt)}</TableCell>
+                <TableCell className={ui.tableActions}>
+                  {canEditNotes ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() => onEditNotes(tx)}
+                    >
+                      ملاحظات
+                    </Button>
+                  ) : null}
+                  {canManage ? (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={pending}
+                      onClick={() => onDelete(tx.id)}
+                    >
+                      حذف
+                    </Button>
+                  ) : null}
+                </TableCell>
+              </TableRow>
+            );
+          })
+        )}
+      </TableBody>
+    </Table>
+  );
+}
+
 export function TransactionsTable({
   rows,
   canManage,
@@ -54,14 +188,8 @@ export function TransactionsTable({
   const [busyLabel, setBusyLabel] = useState<string>(ui.saving);
   const [editing, setEditing] = useState<TransactionRow | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [notes, setNotes] = useState("");
 
-  function openNotes(row: TransactionRow) {
-    setEditing(row);
-    setNotes(row.notes ?? "");
-  }
-
-  function saveNotes() {
+  function saveNotes(notes: string) {
     if (!editing) return;
     setBusyLabel(ui.saving);
     startTransition(async () => {
@@ -87,69 +215,14 @@ export function TransactionsTable({
   return (
     <>
       <BusyOverlay busy={pending && !editing} label={busyLabel}>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>النوع</TableHead>
-              <TableHead>الأداة</TableHead>
-              <TableHead>المكينة</TableHead>
-              <TableHead>ملاحظات</TableHead>
-              <TableHead>بواسطة</TableHead>
-              <TableHead>التاريخ</TableHead>
-              <TableHead>إجراءات</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className={ui.emptyCell}>
-                  لا توجد نتائج
-                </TableCell>
-              </TableRow>
-            ) : (
-              rows.map((tx) => {
-                const canEditNotes =
-                  canManage || tx.performedBy.id === currentUserId;
-                return (
-                  <TableRow key={tx.id}>
-                    <TableCell>
-                      <TransactionTypeBadge type={tx.type} />
-                    </TableCell>
-                    <TableCell>{tx.item.name}</TableCell>
-                    <TableCell>{tx.machine?.name ?? "—"}</TableCell>
-                    <TableCell className="max-w-[12rem] truncate text-sm text-muted-foreground">
-                      {tx.notes || "—"}
-                    </TableCell>
-                    <TableCell>{tx.performedBy.fullName}</TableCell>
-                    <TableCell>{formatDateTime(tx.createdAt)}</TableCell>
-                    <TableCell className={ui.tableActions}>
-                      {canEditNotes ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={pending}
-                          onClick={() => openNotes(tx)}
-                        >
-                          ملاحظات
-                        </Button>
-                      ) : null}
-                      {canManage ? (
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          disabled={pending}
-                          onClick={() => setDeleteId(tx.id)}
-                        >
-                          حذف
-                        </Button>
-                      ) : null}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
+        <TransactionsRows
+          rows={rows}
+          canManage={canManage}
+          currentUserId={currentUserId}
+          pending={pending}
+          onEditNotes={setEditing}
+          onDelete={setDeleteId}
+        />
       </BusyOverlay>
 
       <ConfirmDialog
@@ -165,37 +238,14 @@ export function TransactionsTable({
         onConfirm={onDeleteConfirmed}
       />
 
-      <Dialog
-        open={!!editing}
+      <TransactionNotesDialog
+        editing={editing}
+        pending={pending}
         onOpenChange={(open) => {
-          if (!open && !pending) setEditing(null);
+          if (!open) setEditing(null);
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>تعديل ملاحظات الحركة</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="tx-notes">الملاحظات</Label>
-              <Textarea
-                id="tx-notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={4}
-                disabled={pending}
-              />
-            </div>
-            <LoadingButton
-              onClick={saveNotes}
-              loading={pending}
-              loadingText={ui.saving}
-            >
-              حفظ
-            </LoadingButton>
-          </div>
-        </DialogContent>
-      </Dialog>
+        onSave={saveNotes}
+      />
     </>
   );
 }

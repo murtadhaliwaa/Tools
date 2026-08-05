@@ -6,7 +6,7 @@ import { bustCatalogCache, bustItemOptionsCache } from "@/lib/cache";
 import { prisma } from "@/lib/db";
 import { categorySchema, itemSchema, machineSchema } from "@/lib/validations";
 import { createTransaction } from "@/services/transactions";
-import { type ActionResult, toActionError } from "@/actions/shared";
+import { type ActionResult, guardRate, toActionError } from "@/actions/shared";
 
 /** ADMIN + KEEPER: أدوات/مكائن. ADMIN فقط: تصنيفات — انظر docs/SECURITY.md */
 
@@ -243,5 +243,20 @@ export async function deleteItemAction(id: string): Promise<ActionResult> {
     return { success: true, message: "تم حذف الأداة" };
   } catch (error) {
     return toActionError(error);
+  }
+}
+
+/** بحث خفيف لفلاتر الأدوات — لا يجلب 500 صفاً للعميل */
+export async function searchItemFilterOptionsAction(
+  query: string,
+): Promise<Array<{ id: string; name: string; code: string | null }>> {
+  try {
+    const { profile } = await requireUser();
+    const limited = await guardRate(`item-filter:${profile.id}`, 60);
+    if (limited) return [];
+    const { searchItemFilterOptions } = await import("@/services/catalog");
+    return searchItemFilterOptions(profile.organizationId, query, 40);
+  } catch {
+    return [];
   }
 }

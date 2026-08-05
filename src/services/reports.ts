@@ -4,43 +4,75 @@ import { getItemStatusById } from "@/services/items";
 import { deriveItemStatus } from "@/services/item-status";
 import type { TransactionType } from "@/generated/prisma/client";
 
-export const REPORT_ROW_LIMIT = 2000;
+/** حجم صفحة واجهة التقارير */
+export const REPORT_PAGE_SIZE = 50;
+/** سقف صفوف التصدير (Excel/PDF عبر Server Action) */
+export const EXPORT_ROW_LIMIT = 2000;
+/** سقف سجل أداة عند التصدير / العرض الافتراضي القديم */
+export const TIMELINE_EXPORT_LIMIT = 500;
+
+function clampPage(page?: number) {
+  return Math.max(1, page ?? 1);
+}
+
+function clampPageSize(pageSize: number | undefined, max: number, fallback: number) {
+  return Math.min(Math.max(pageSize ?? fallback, 1), max);
+}
 
 export async function getMachineReport(params: {
   organizationId: string;
   machineId: string;
   from?: Date;
   to?: Date;
+  page?: number;
+  pageSize?: number;
 }) {
-  const rows = await prisma.transaction.findMany({
-    where: {
-      organizationId: params.organizationId,
-      machineId: params.machineId,
-      type: "ISSUE",
-      ...(params.from || params.to
-        ? {
-            createdAt: {
-              ...(params.from ? { gte: params.from } : {}),
-              ...(params.to ? { lte: params.to } : {}),
-            },
-          }
-        : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    take: REPORT_ROW_LIMIT,
-    select: {
-      id: true,
-      createdAt: true,
-      notes: true,
-      item: { select: { id: true, name: true, code: true } },
-      performedBy: { select: { fullName: true } },
-    },
-  });
+  const page = clampPage(params.page);
+  const pageSize = clampPageSize(
+    params.pageSize,
+    EXPORT_ROW_LIMIT,
+    REPORT_PAGE_SIZE,
+  );
+
+  const where = {
+    organizationId: params.organizationId,
+    machineId: params.machineId,
+    type: "ISSUE" as const,
+    ...(params.from || params.to
+      ? {
+          createdAt: {
+            ...(params.from ? { gte: params.from } : {}),
+            ...(params.to ? { lte: params.to } : {}),
+          },
+        }
+      : {}),
+  };
+
+  const [total, rows] = await Promise.all([
+    prisma.transaction.count({ where }),
+    prisma.transaction.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        id: true,
+        createdAt: true,
+        notes: true,
+        item: { select: { id: true, name: true, code: true } },
+        performedBy: { select: { fullName: true } },
+      },
+    }),
+  ]);
 
   return {
     rows,
-    truncated: rows.length >= REPORT_ROW_LIMIT,
-    limit: REPORT_ROW_LIMIT,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    truncated: total > rows.length,
+    limit: pageSize,
   };
 }
 
@@ -49,8 +81,8 @@ export async function getRepairStatusReport(
   organizationId: string,
   options?: { page?: number; pageSize?: number },
 ) {
-  const page = Math.max(1, options?.page ?? 1);
-  const pageSize = Math.min(Math.max(options?.pageSize ?? 50, 1), 100);
+  const page = clampPage(options?.page);
+  const pageSize = clampPageSize(options?.pageSize, EXPORT_ROW_LIMIT, 50);
   const offset = (page - 1) * pageSize;
 
   const rows = await prisma.$queryRaw<
@@ -189,23 +221,47 @@ export async function getMonthlySummary(params: {
 export async function getItemTimeline(params: {
   organizationId: string;
   itemId: string;
+  page?: number;
+  pageSize?: number;
 }) {
-  return prisma.transaction.findMany({
-    where: {
-      organizationId: params.organizationId,
-      itemId: params.itemId,
-    },
-    orderBy: { createdAt: "asc" },
-    take: 500,
-    select: {
-      id: true,
-      type: true,
-      notes: true,
-      createdAt: true,
-      machine: { select: { name: true } },
-      performedBy: { select: { fullName: true } },
-    },
-  });
+  const page = clampPage(params.page);
+  const pageSize = clampPageSize(
+    params.pageSize,
+    TIMELINE_EXPORT_LIMIT,
+    REPORT_PAGE_SIZE,
+  );
+  const where = {
+    organizationId: params.organizationId,
+    itemId: params.itemId,
+  };
+
+  const [total, rows] = await Promise.all([
+    prisma.transaction.count({ where }),
+    prisma.transaction.findMany({
+      where,
+      orderBy: { createdAt: "asc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        id: true,
+        type: true,
+        notes: true,
+        createdAt: true,
+        machine: { select: { name: true } },
+        performedBy: { select: { fullName: true } },
+      },
+    }),
+  ]);
+
+  return {
+    rows,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    truncated: total > rows.length,
+    limit: pageSize,
+  };
 }
 
 /** تقرير مادة معينة: الحالة الحالية + الحركات خلال فترة */
@@ -214,9 +270,18 @@ export async function getMaterialReport(params: {
   itemId: string;
   from?: Date;
   to?: Date;
+  page?: number;
+  pageSize?: number;
 }) {
   const item = await getItemStatusById(params.itemId, params.organizationId);
   if (!item) return null;
+
+  const page = clampPage(params.page);
+  const pageSize = clampPageSize(
+    params.pageSize,
+    EXPORT_ROW_LIMIT,
+    REPORT_PAGE_SIZE,
+  );
 
   const dateFilter =
     params.from || params.to
@@ -234,11 +299,13 @@ export async function getMaterialReport(params: {
     ...dateFilter,
   };
 
-  const [rows, byTypeRows] = await Promise.all([
+  const [total, rows, byTypeRows] = await Promise.all([
+    prisma.transaction.count({ where }),
     prisma.transaction.findMany({
       where,
       orderBy: { createdAt: "desc" },
-      take: REPORT_ROW_LIMIT,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
       select: {
         id: true,
         type: true,
@@ -264,8 +331,12 @@ export async function getMaterialReport(params: {
     item,
     rows,
     byType,
-    truncated: rows.length >= REPORT_ROW_LIMIT,
-    limit: REPORT_ROW_LIMIT,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    truncated: total > rows.length,
+    limit: pageSize,
   };
 }
 

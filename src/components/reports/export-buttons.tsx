@@ -11,17 +11,28 @@ import { LoadingButton } from "@/components/shared/loading-button";
 
 type ExportFormat = "excel" | "pdf";
 
+export type ExportPayload = {
+  rows: ExportRow[];
+  truncated?: boolean;
+  limit?: number;
+  total?: number;
+};
+
 type ExportButtonsProps = {
   filename: string;
   title?: string;
   headers: string[];
   sheetName?: string;
-  /** إن وُجدت تُستخدم مباشرة؛ وإلا يُستدعى getRows عند الضغط */
   rows?: ExportRow[];
-  /** جلب الصفوف عند التصدير فقط — يقلل حجم RSC */
-  getRows?: () => Promise<ExportRow[]>;
+  getRows?: () => Promise<ExportPayload | ExportRow[]>;
   enabled?: boolean;
 };
+
+function normalizePayload(
+  data: ExportPayload | ExportRow[],
+): ExportPayload {
+  return Array.isArray(data) ? { rows: data } : data;
+}
 
 export function ExportButtons({
   filename,
@@ -39,17 +50,35 @@ export function ExportButtons({
   async function exportAs(format: ExportFormat) {
     try {
       setPending(format);
-      const data = getRows ? await getRows() : (rows ?? []);
-      if (data.length === 0) {
+      const payload = normalizePayload(
+        getRows ? await getRows() : { rows: rows ?? [] },
+      );
+      if (payload.rows.length === 0) {
         toast.error("لا توجد بيانات للتصدير");
         return;
       }
       if (format === "excel") {
-        await downloadExcelReport({ filename, sheetName, headers, rows: data });
+        await downloadExcelReport({
+          filename,
+          sheetName,
+          headers,
+          rows: payload.rows,
+        });
       } else {
-        await downloadPdfReport({ filename, title, headers, rows: data });
+        await downloadPdfReport({
+          filename,
+          title,
+          headers,
+          rows: payload.rows,
+        });
       }
-      toast.success(format === "excel" ? "تم تصدير Excel" : "تم تصدير PDF");
+      if (payload.truncated) {
+        toast.success(
+          `تم التصدير (أول ${payload.limit ?? payload.rows.length} من ${payload.total ?? "?"} صف). قلّص الفترة لاستخراج الباقي.`,
+        );
+      } else {
+        toast.success(format === "excel" ? "تم تصدير Excel" : "تم تصدير PDF");
+      }
     } catch (error) {
       console.error("export failed", error);
       toast.error("تعذر التصدير، حاول مرة أخرى");
