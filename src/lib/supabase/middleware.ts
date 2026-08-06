@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import type { User } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { USER_HEADER } from "@/lib/auth-headers";
+import { getPublicEnv } from "@/lib/env";
 
 export type AppRole = "ADMIN" | "KEEPER" | null;
 
@@ -48,29 +49,26 @@ export async function updateSession(request: NextRequest) {
   let cookiesToSet: CookieToSet[] = [];
   let supabaseResponse = nextWithUser(request, pathname, null);
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(nextCookies) {
-          cookiesToSet = nextCookies;
-          nextCookies.forEach(({ name, value }) =>
-            request.cookies.set(name, value),
-          );
-          supabaseResponse = nextWithUser(
-            request,
-            pathname,
-            user,
-            cookiesToSet,
-          );
-        },
+  const { supabaseUrl, supabaseAnonKey } = getPublicEnv();
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(nextCookies) {
+        cookiesToSet = nextCookies;
+        nextCookies.forEach(({ name, value }) =>
+          request.cookies.set(name, value),
+        );
+        supabaseResponse = nextWithUser(
+          request,
+          pathname,
+          user,
+          cookiesToSet,
+        );
       },
     },
-  );
+  });
 
   const {
     data: { user: authUser },

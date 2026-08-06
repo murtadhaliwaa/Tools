@@ -1,7 +1,7 @@
 {
   "framework": "nextjs",
   "regions": ["fra1"],
-  "buildCommand": "prisma generate && next build --webpack",
+  "buildCommand": "node scripts/db-migrate-deploy.mjs && prisma generate && next build --webpack",
   "headers": [
     {
       "source": "/(.*)",

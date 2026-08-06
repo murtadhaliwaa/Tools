@@ -51,9 +51,11 @@ npm run dev
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `NEXT_PUBLIC_SITE_URL` — رابط الموقع المنشور
    - `BOOTSTRAP_SECRET` — لمرة الإقلاع الأولى فقط (≥16)
-   - `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` — مُفضَّل لحدّ معدّل موحّد في الإنتاج (بدونها يعمل الدخول بحدّ محلي)
-3. Build Command: `prisma generate && next build --webpack`
-4. بعد أول نشر (أو بعد migrate)، نفّذ على قاعدة الإنتاج مرة:
+   - `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` — اختياري؛ بدونه يُستخدم جدول Postgres للحدّ الموحّد
+3. Build Command (افتراضي في `vercel.json` / `npm run build`):
+   `node scripts/db-migrate-deploy.mjs && prisma generate && next build --webpack`
+   يطبّق ترحيلات Prisma تلقائياً. للتخطّي المحلي: `SKIP_DB_MIGRATE=1`.
+4. بعد أول نشر (أو بعد تغيير `prisma/sql/*`)، نفّذ على قاعدة الإنتاج مرة:
    ```bash
    npm run db:sql
    ```
@@ -61,14 +63,16 @@ npm run dev
    **الـ migration وحدها لا تكفي لهذه الطبقات.**
 5. (موصى به) عيّن كلمة مرور لـ `tool_tracker_app` وحدّث `DATABASE_URL` لهذا الدور؛ أبقِ `DIRECT_URL` للترحيلات كمالك
 6. أنشئ أول مدير عبر `/signup` + رمز الإقلاع، ثم عطّل Sign ups في Supabase Auth
-7. Deploy
+7. راجع [docs/OPS.md](docs/OPS.md) للنسخ الاحتياطي وحدود المجاني
+8. Deploy
 
 ## الأوامر
 
 | الأمر | الوظيفة |
 |---|---|
 | `npm run dev` | تطوير |
-| `npm run build` | بناء إنتاج + PWA |
+| `npm run build` | ترحيل + بناء إنتاج + PWA |
+| `npm run db:migrate:deploy` | تطبيق ترحيلات الإنتاج فقط |
 | `npm run db:setup` | مزامنة المخطط + SQL (قيود/RLS/فهارس) |
 | `npm run db:sql` | تطبيق ملفات SQL فقط |
 | `npm run db:indexes` | فهارس الأداء فقط |
@@ -81,4 +85,5 @@ npm run dev
 - لا ترفع ملفات `.env*` إلى Git
 - `SUPABASE_SERVICE_ROLE_KEY` و `BOOTSTRAP_SECRET` للخادم فقط — لا تضعهما في الواجهة
 - بعد الإقلاع: عطّل التسجيل العام في Supabase Auth واترك `allowPublicSignup=false`
-- في الإنتاج: Upstash إلزامي لمسارات المصادقة (بدونها تُرفض المحاولات)
+- في الإنتاج: حدّ المعدّل عبر Upstash أو جدول Postgres (`RateLimitBucket`) تلقائياً. انظر `docs/OPS.md` و`docs/SECURITY.md`.
+- النسخ الاحتياطي: `npm run db:backup` — انظر `docs/OPS.md`

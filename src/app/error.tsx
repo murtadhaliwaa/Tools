@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { BrandMark } from "@/components/shared/brand-mark";
+import { logger } from "@/lib/logger";
 import { cn } from "@/lib/utils";
 
 export default function ErrorPage({
@@ -14,7 +15,10 @@ export default function ErrorPage({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error(error);
+    logger.error("ui.error-boundary", {
+      digest: error.digest,
+      name: error.name,
+    });
   }, [error]);
 
   return (

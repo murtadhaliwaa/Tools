@@ -46,6 +46,7 @@ ALTER TABLE "Category" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Item" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Machine" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Transaction" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "RateLimitBucket" ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE "Organization" FORCE ROW LEVEL SECURITY;
 ALTER TABLE "Profile" FORCE ROW LEVEL SECURITY;
@@ -53,6 +54,7 @@ ALTER TABLE "Category" FORCE ROW LEVEL SECURITY;
 ALTER TABLE "Item" FORCE ROW LEVEL SECURITY;
 ALTER TABLE "Machine" FORCE ROW LEVEL SECURITY;
 ALTER TABLE "Transaction" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "RateLimitBucket" FORCE ROW LEVEL SECURITY;
 
 -- مساعدة: جلب organizationId للمستخدم الحالي
 CREATE OR REPLACE FUNCTION public.current_profile_org_id()
@@ -242,6 +244,12 @@ CREATE POLICY app_all_machine ON "Machine"
 
 DROP POLICY IF EXISTS app_all_transaction ON "Transaction";
 CREATE POLICY app_all_transaction ON "Transaction"
+  FOR ALL TO tool_tracker_app
+  USING (true)
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS app_all_rate_limit_bucket ON "RateLimitBucket";
+CREATE POLICY app_all_rate_limit_bucket ON "RateLimitBucket"
   FOR ALL TO tool_tracker_app
   USING (true)
   WITH CHECK (true);

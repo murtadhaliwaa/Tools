@@ -1,15 +1,16 @@
 import { createClient } from "@supabase/supabase-js";
+import { getPublicEnv } from "@/lib/env";
 
 /** عميل Admin — يتطلب SUPABASE_SERVICE_ROLE_KEY (خادم فقط) */
 export function createAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
+  const { supabaseUrl } = getPublicEnv();
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!key) {
     throw new Error(
       "إنشاء الحسابات يتطلب SUPABASE_SERVICE_ROLE_KEY في متغيرات البيئة",
     );
   }
-  return createClient(url, key, {
+  return createClient(supabaseUrl, key, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }

@@ -153,3 +153,12 @@ model Transaction {
   @@index([machineId, createdAt(sort: Desc)])
   @@index([performedById])
 }
+
+/// حد معدّل مشترك بين مثيلات Vercel عند غياب Upstash
+model RateLimitBucket {
+  key     String   @id
+  count   Int      @default(0)
+  resetAt DateTime
+
+  @@index([resetAt])
+}

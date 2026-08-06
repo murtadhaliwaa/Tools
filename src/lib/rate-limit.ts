@@ -40,7 +40,7 @@ export function isUpstashConfigured() {
   );
 }
 
-/** مسارات المصادقة الحساسة — يُفضَّل Upstash في الإنتاج */
+/** مسارات المصادقة الحساسة */
 export function isAuthRatePrefix(prefix: string) {
   return AUTH_RATE_PREFIXES.has(prefix);
 }
@@ -100,17 +100,64 @@ async function upstashRateLimit(
   }
 }
 
+/** حد معدّل عبر Postgres — موحّد عبر مثيلات Vercel بدون Upstash */
+async function postgresRateLimit(
+  key: string,
+  limit: number,
+  windowMs: number,
+): Promise<{ ok: boolean; retryAfterSec: number } | null> {
+  if (!process.env.DATABASE_URL?.trim()) return null;
+
+  try {
+    const { prisma } = await import("@/lib/db");
+    const now = new Date();
+    const resetAt = new Date(now.getTime() + windowMs);
+    const bucketKey = `rl:${key}`;
+
+    const existing = await prisma.rateLimitBucket.findUnique({
+      where: { key: bucketKey },
+    });
+
+    if (!existing || existing.resetAt <= now) {
+      await prisma.rateLimitBucket.upsert({
+        where: { key: bucketKey },
+        create: { key: bucketKey, count: 1, resetAt },
+        update: { count: 1, resetAt },
+      });
+      return { ok: true, retryAfterSec: 0 };
+    }
+
+    if (existing.count >= limit) {
+      return {
+        ok: false,
+        retryAfterSec: Math.max(
+          1,
+          Math.ceil((existing.resetAt.getTime() - now.getTime()) / 1000),
+        ),
+      };
+    }
+
+    await prisma.rateLimitBucket.update({
+      where: { key: bucketKey },
+      data: { count: { increment: 1 } },
+    });
+    return { ok: true, retryAfterSec: 0 };
+  } catch {
+    return null;
+  }
+}
+
 export type RateLimitResult = {
   ok: boolean;
   retryAfterSec: number;
-  /** unavailable = فشل Redis مع تفعيل fail-closed؛ limited = تجاوز الحد */
+  /** unavailable = فشل المخزن الصارم؛ limited = تجاوز الحد */
   reason?: "unavailable" | "limited";
 };
 
 export type RateLimitOptions = {
   /**
-   * true = عند فشل Upstash لا نسقط للذاكرة (fail-closed).
-   * يُفعَّل تلقائياً لمسارات المصادقة في الإنتاج فقط إذا
+   * true = عند فشل Upstash لا نسقط لبدائل (fail-closed).
+   * يُفعَّل لمسارات المصادقة في الإنتاج إذا
    * `AUTH_RATE_LIMIT_FAIL_CLOSED=true` وUpstash مضبوط.
    */
   strict?: boolean;
@@ -121,9 +168,8 @@ function authFailClosedEnabled() {
 }
 
 /**
- * حد معدّل: Upstash إن توفر، وإلا ذاكرة العملية.
- * للمصادقة في الإنتاج يُفضَّل Upstash (متعدد المثيلات). بدونها يعمل الدخول
- * بحدّ محلي لكل مثيل — فعّل AUTH_RATE_LIMIT_FAIL_CLOSED=true لرفض الدخول عند تعطّل Redis.
+ * حد معدّل: Upstash → Postgres → ذاكرة العملية.
+ * Postgres يكفي لتوحيد الحد عبر مثيلات Vercel بدون خدمة خارجية.
  */
 export async function rateLimit(
   key: string,
@@ -139,25 +185,18 @@ export async function rateLimit(
     authFailClosedEnabled();
   const strict = options?.strict === true || authStrictDefault;
 
-  if (
-    isProductionRuntime() &&
-    isAuthRatePrefix(prefix) &&
-    !isUpstashConfigured()
-  ) {
-    console.error(
-      "[rate-limit] UPSTASH غير مضبوط — استخدام حدّ الذاكرة لمسار المصادقة",
-    );
-  }
-
   const remote = await upstashRateLimit(key, limit, windowMs);
   if (remote) {
-    return remote.ok
-      ? remote
-      : { ...remote, reason: "limited" };
+    return remote.ok ? remote : { ...remote, reason: "limited" };
   }
 
   if (strict && isUpstashConfigured()) {
     return { ok: false, retryAfterSec: 60, reason: "unavailable" };
+  }
+
+  const db = await postgresRateLimit(key, limit, windowMs);
+  if (db) {
+    return db.ok ? db : { ...db, reason: "limited" };
   }
 
   const local = memoryRateLimit(key, limit, windowMs);
@@ -179,7 +218,10 @@ export function rateLimitSync(
  */
 export function clientKeyFromHeaders(headers: Headers, prefix: string) {
   const realIp = headers.get("x-real-ip")?.trim();
-  const vercelForwarded = headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim();
+  const vercelForwarded = headers
+    .get("x-vercel-forwarded-for")
+    ?.split(",")[0]
+    ?.trim();
   const forwarded = headers.get("x-forwarded-for");
   const forwardedLast = forwarded
     ? forwarded.split(",").map((p) => p.trim()).filter(Boolean).at(-1)

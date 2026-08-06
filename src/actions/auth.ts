@@ -66,7 +66,7 @@ export async function loginAction(
     if (err instanceof AuthError) {
       return { success: false, message: err.message };
     }
-    throw err;
+    return { success: false, message: toArabicErrorMessage(err) };
   }
   if (!profile.isActive) {
     await supabase.auth.signOut();
@@ -164,7 +164,7 @@ export async function signupAction(
       if (err instanceof AuthError) {
         return { success: false, message: err.message };
       }
-      throw err;
+      return { success: false, message: toArabicErrorMessage(err) };
     }
 
     if (!profile.isActive) {

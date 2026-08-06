@@ -16,6 +16,7 @@ export type ExportPayload = {
   truncated?: boolean;
   limit?: number;
   total?: number;
+  error?: string;
 };
 
 type ExportButtonsProps = {
@@ -53,6 +54,10 @@ export function ExportButtons({
       const payload = normalizePayload(
         getRows ? await getRows() : { rows: rows ?? [] },
       );
+      if (payload.error) {
+        toast.error(payload.error);
+        return;
+      }
       if (payload.rows.length === 0) {
         toast.error("لا توجد بيانات للتصدير");
         return;
@@ -80,8 +85,18 @@ export function ExportButtons({
         toast.success(format === "excel" ? "تم تصدير Excel" : "تم تصدير PDF");
       }
     } catch (error) {
-      console.error("export failed", error);
-      toast.error("تعذر التصدير، حاول مرة أخرى");
+      console.error(
+        JSON.stringify({
+          level: "error",
+          message: "export.failed",
+          ts: new Date().toISOString(),
+        }),
+      );
+      toast.error(
+        error instanceof Error && /[\u0600-\u06FF]/.test(error.message)
+          ? error.message
+          : "تعذر التصدير، حاول مرة أخرى",
+      );
     } finally {
       setPending(null);
     }

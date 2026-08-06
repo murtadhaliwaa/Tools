@@ -26,6 +26,7 @@ import {
   isBootstrapPending,
   verifyBootstrapSecret,
 } from "@/lib/bootstrap";
+import { assertServerEnv, getPublicEnv } from "@/lib/env";
 
 describe("deriveItemStatus", () => {
   it("maps transaction types to statuses with quantity", () => {
@@ -263,5 +264,41 @@ describe("export schemas", () => {
     expect(
       exportMonthlySchema.safeParse({ year: 2010, month: 13 }).success,
     ).toBe(false);
+  });
+});
+
+describe("env validation", () => {
+  it("getPublicEnv reads supabase public keys", () => {
+    const prevUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const prevKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-test-key";
+
+    const env = getPublicEnv();
+    expect(env.supabaseUrl).toBe("https://example.supabase.co");
+    expect(env.supabaseAnonKey).toBe("anon-test-key");
+
+    if (prevUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = prevUrl;
+    if (prevKey === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    else process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = prevKey;
+  });
+
+  it("assertServerEnv requires DATABASE_URL", () => {
+    const prevDb = process.env.DATABASE_URL;
+    const prevUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const prevKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    process.env.DATABASE_URL = "";
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-test-key";
+
+    expect(() => assertServerEnv()).toThrow(/DATABASE_URL|متغيرات البيئة/);
+
+    if (prevDb === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = prevDb;
+    if (prevUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = prevUrl;
+    if (prevKey === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    else process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = prevKey;
   });
 });

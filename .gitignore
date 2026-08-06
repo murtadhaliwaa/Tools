@@ -61,3 +61,6 @@ next-env.d.ts
 .windsurf/
 .idea/
 .vscode/
+
+# Database backups (local / CI artifacts)
+/backups/
