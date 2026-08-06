@@ -7,6 +7,9 @@ import {
   downloadPdfReport,
   type ExportRow,
 } from "@/lib/export-report";
+import {
+  EXPORT_LIMIT_HINT,
+} from "@/lib/export-limits";
 import { LoadingButton } from "@/components/shared/loading-button";
 
 type ExportFormat = "excel" | "pdf";
@@ -27,6 +30,8 @@ type ExportButtonsProps = {
   rows?: ExportRow[];
   getRows?: () => Promise<ExportPayload | ExportRow[]>;
   enabled?: boolean;
+  /** تلميح حدّ التصدير قبل الضغط */
+  limitHint?: string;
 };
 
 function normalizePayload(
@@ -43,6 +48,7 @@ export function ExportButtons({
   getRows,
   sheetName = "التقرير",
   enabled = true,
+  limitHint = EXPORT_LIMIT_HINT,
 }: ExportButtonsProps) {
   const [pending, setPending] = useState<ExportFormat | null>(null);
   const busy = pending !== null;
@@ -103,29 +109,34 @@ export function ExportButtons({
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
-      <LoadingButton
-        type="button"
-        variant="outline"
-        size="sm"
-        loading={pending === "excel"}
-        loadingText="جاري Excel..."
-        disabled={disabled}
-        onClick={() => void exportAs("excel")}
-      >
-        Excel
-      </LoadingButton>
-      <LoadingButton
-        type="button"
-        variant="outline"
-        size="sm"
-        loading={pending === "pdf"}
-        loadingText="جاري PDF..."
-        disabled={disabled}
-        onClick={() => void exportAs("pdf")}
-      >
-        PDF
-      </LoadingButton>
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap gap-2">
+        <LoadingButton
+          type="button"
+          variant="outline"
+          size="sm"
+          loading={pending === "excel"}
+          loadingText="جاري Excel..."
+          disabled={disabled}
+          onClick={() => void exportAs("excel")}
+        >
+          Excel
+        </LoadingButton>
+        <LoadingButton
+          type="button"
+          variant="outline"
+          size="sm"
+          loading={pending === "pdf"}
+          loadingText="جاري PDF..."
+          disabled={disabled}
+          onClick={() => void exportAs("pdf")}
+        >
+          PDF
+        </LoadingButton>
+      </div>
+      {limitHint ? (
+        <p className="text-xs text-muted-foreground">{limitHint}</p>
+      ) : null}
     </div>
   );
 }

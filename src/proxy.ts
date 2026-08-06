@@ -17,6 +17,7 @@ const ADMIN_ONLY_PREFIXES = [
   "/users",
   "/reports/monthly",
   "/settings",
+  "/help",
 ];
 
 export async function proxy(request: NextRequest) {

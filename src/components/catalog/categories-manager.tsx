@@ -89,9 +89,9 @@ export function CategoriesManager({
         onOpenChange={(next) => {
           if (!next) crud.setDeleteId(null);
         }}
-        title="حذف التصنيف"
-        description="هل أنت متأكد من حذف هذا التصنيف؟"
-        confirmLabel="حذف"
+        title="إخفاء التصنيف"
+        description="ستُخفى التصنيف من القوائم (حذف ناعم) إن لم تكن هناك أدوات نشطة مرتبطة به. لا يظهر زر استعادة حالياً."
+        confirmLabel="إخفاء"
         destructive
         loading={crud.pending}
         onConfirm={() => crud.runDelete(deleteCategoryAction)}

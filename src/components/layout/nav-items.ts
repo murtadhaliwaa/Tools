@@ -9,6 +9,7 @@ import {
   Users,
   PlusCircle,
   Settings,
+  CircleHelp,
   type LucideIcon,
 } from "lucide-react";
 
@@ -31,6 +32,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/reports", label: "التقارير", icon: FileBarChart, prefetch: false },
   { href: "/users", label: "الحسابات", icon: Users, roles: ["ADMIN"] },
   { href: "/settings", label: "الإعدادات", icon: Settings, roles: ["ADMIN"] },
+  { href: "/help", label: "المساعدة", icon: CircleHelp, roles: ["ADMIN"] },
 ];
 
 /** يختار أطول رابط مطابق حتى لا يُفعَّل /transactions مع /transactions/new */

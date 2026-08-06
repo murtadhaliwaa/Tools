@@ -311,9 +311,9 @@ export function ItemsManager({
         onOpenChange={(next) => {
           if (!next) crud.setDeleteId(null);
         }}
-        title="حذف الأداة"
-        description="هل أنت متأكد من حذف هذه الأداة؟"
-        confirmLabel="حذف"
+        title="إخفاء الأداة"
+        description="ستُخفى الأداة من القوائم (حذف ناعم) ولن تُحذف حركاتها من السجل. لا يظهر زر استعادة حالياً — راجع المدير قبل المتابعة."
+        confirmLabel="إخفاء"
         destructive
         loading={crud.pending}
         onConfirm={() => crud.runDelete(deleteItemAction)}

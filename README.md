@@ -64,7 +64,8 @@ npm run dev
 5. (موصى به) عيّن كلمة مرور لـ `tool_tracker_app` وحدّث `DATABASE_URL` لهذا الدور؛ أبقِ `DIRECT_URL` للترحيلات كمالك
 6. أنشئ أول مدير عبر `/signup` + رمز الإقلاع، ثم عطّل Sign ups في Supabase Auth
 7. راجع [docs/OPS.md](docs/OPS.md) للنسخ الاحتياطي وحدود المجاني
-8. Deploy
+8. سلّم العميل: [docs/ADMIN-AR.md](docs/ADMIN-AR.md) + [docs/HANDOFF-AR.md](docs/HANDOFF-AR.md) وصفحة **/help** في التطبيق
+9. Deploy
 
 ## الأوامر
 

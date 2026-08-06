@@ -113,9 +113,9 @@ export function MachinesManager({
         onOpenChange={(next) => {
           if (!next) crud.setDeleteId(null);
         }}
-        title="حذف المكينة"
-        description="هل أنت متأكد من حذف هذه المكينة؟"
-        confirmLabel="حذف"
+        title="إخفاء المكينة"
+        description="ستُخفى المكينة من القوائم (حذف ناعم). الحركات المرتبطة تبقى في السجل. لا يظهر زر استعادة حالياً."
+        confirmLabel="إخفاء"
         destructive
         loading={crud.pending}
         onConfirm={() => crud.runDelete(deleteMachineAction)}

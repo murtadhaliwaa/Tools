@@ -8,6 +8,10 @@ import {
   loadRepairStatusExportRows,
 } from "@/actions/export-reports";
 import { ExportButtons } from "@/components/reports/export-buttons";
+import {
+  EXPORT_LIMIT_HINT,
+  TIMELINE_EXPORT_LIMIT_HINT,
+} from "@/lib/export-limits";
 
 type Common = {
   filename: string;
@@ -27,6 +31,7 @@ export function MachineReportExport(
   return (
     <ExportButtons
       {...rest}
+      limitHint={EXPORT_LIMIT_HINT}
       headers={["الأداة", "الرمز", "التاريخ", "بواسطة", "ملاحظات"]}
       getRows={() => loadMachineExportRows({ machineId, from, to })}
     />
@@ -40,6 +45,7 @@ export function ItemTimelineExport(
   return (
     <ExportButtons
       {...rest}
+      limitHint={TIMELINE_EXPORT_LIMIT_HINT}
       headers={["النوع", "المكينة", "بواسطة", "التاريخ", "ملاحظات"]}
       getRows={() => loadItemTimelineExportRows({ itemId })}
     />
@@ -57,6 +63,7 @@ export function MaterialReportExport(
   return (
     <ExportButtons
       {...rest}
+      limitHint={EXPORT_LIMIT_HINT}
       headers={["النوع", "المكينة", "بواسطة", "التاريخ", "ملاحظات"]}
       getRows={() => loadMaterialExportRows({ itemId, from, to })}
     />
@@ -67,6 +74,7 @@ export function RepairStatusExport(props: Common) {
   return (
     <ExportButtons
       {...props}
+      limitHint={EXPORT_LIMIT_HINT}
       headers={["الأداة", "الرمز", "التصنيف", "منذ"]}
       getRows={() => loadRepairStatusExportRows()}
     />
@@ -80,6 +88,7 @@ export function MonthlyReportExport(
   return (
     <ExportButtons
       {...rest}
+      limitHint={EXPORT_LIMIT_HINT}
       headers={["القسم", "الاسم", "العدد"]}
       getRows={() => loadMonthlyExportRows({ year, month })}
     />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { updateOrganizationSettingsAction } from "@/actions";
 import { LoadingButton } from "@/components/shared/loading-button";
@@ -65,10 +66,41 @@ export function SettingsForm({
           <span>
             <span className="font-medium">السماح بالتسجيل العام</span>
             <span className="mt-1 block text-muted-foreground">
-              الحسابات الجديدة تبقى غير مفعّلة حتى يوافق المدير من صفحة الحسابات
+              الحسابات الجديدة تبقى غير مفعّلة حتى يوافق المدير من{" "}
+              <Link
+                href="/users"
+                className="underline underline-offset-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                صفحة الحسابات
+              </Link>
             </span>
           </span>
         </label>
+
+        <div className="rounded-lg border bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
+          <p className="font-medium text-foreground">قائمة سريعة للتسجيل</p>
+          <ol className="mt-1.5 list-inside list-decimal space-y-1">
+            <li>
+              الطريق المفضّل: أنشئ الحسابات من{" "}
+              <Link href="/users" className="underline underline-offset-2">
+                الحسابات
+              </Link>{" "}
+              (مفعّلة فوراً).
+            </li>
+            <li>
+              إن فتحت التسجيل العام: راجع الحسابات الموقوفة وفعّلها يدوياً.
+            </li>
+            <li>أغلق التسجيل العام عندما لا تحتاج طلبات جديدة.</li>
+          </ol>
+          <p className="mt-2">
+            دليل أوضح:{" "}
+            <Link href="/help" className="underline underline-offset-2">
+              المساعدة
+            </Link>
+          </p>
+        </div>
+
         <LoadingButton
           onClick={onSave}
           loading={pending}

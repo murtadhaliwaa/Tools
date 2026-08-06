@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   createUserAction,
@@ -10,6 +11,7 @@ import {
 import { RoleLabel } from "@/types/domain";
 import { BusyOverlay } from "@/components/shared/busy-overlay";
 import { LoadingButton } from "@/components/shared/loading-button";
+import { RolePermissionsHint } from "@/components/shared/role-permissions-hint";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -59,6 +61,8 @@ export function UsersManager({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"ADMIN" | "KEEPER">("KEEPER");
+
+  const inactiveCount = users.filter((u) => !u.isActive).length;
 
   function openCreate() {
     setEditing(null);
@@ -120,7 +124,36 @@ export function UsersManager({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm leading-relaxed">
+        <p className="font-medium">تفعيل الحسابات</p>
+        <p className="mt-1 text-muted-foreground">
+          الحسابات الجديدة (من التسجيل العام أو بعد الإنشاء) قد تظهر{" "}
+          <span className="text-foreground">موقوفة</span> حتى يضغط المدير
+          «تفعيل». بدون تفعيل لا يمكنهم تسجيل الدخول.
+        </p>
+        {inactiveCount > 0 ? (
+          <p className="mt-2 text-foreground">
+            يوجد حالياً {inactiveCount} حساباً موقوفاً بانتظار التفعيل.
+          </p>
+        ) : null}
+        <p className="mt-2 text-muted-foreground">
+          للمزيد:{" "}
+          <Link href="/help" className="underline underline-offset-2">
+            دليل المدير
+          </Link>
+          {" · "}
+          <Link href="/settings" className="underline underline-offset-2">
+            إعدادات التسجيل
+          </Link>
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">
+          {users.length === 0
+            ? "لا توجد حسابات بعد — أضف أول حساب للبدء."
+            : `${users.length} حساب`}
+        </p>
         <Dialog open={open} onOpenChange={setOpen}>
           <Button onClick={openCreate} disabled={pending}>
             إضافة حساب
@@ -184,6 +217,7 @@ export function UsersManager({
                     <SelectItem value="ADMIN">{RoleLabel.ADMIN}</SelectItem>
                   </SelectContent>
                 </Select>
+                <RolePermissionsHint role={role} />
               </div>
               <LoadingButton
                 onClick={onSave}
@@ -212,7 +246,7 @@ export function UsersManager({
             {users.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} className={ui.emptyCell}>
-                  لا توجد حسابات
+                  لا توجد حسابات — اضغط «إضافة حساب» لإنشاء أول مستخدم.
                 </TableCell>
               </TableRow>
             ) : (

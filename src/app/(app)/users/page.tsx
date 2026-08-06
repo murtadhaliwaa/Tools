@@ -11,7 +11,7 @@ export default async function UsersPage() {
     <PageShell>
       <PageHeader
         title="الحسابات"
-        description="إدارة أدوار المستخدمين وإضافة حسابات"
+        description="إدارة الأدوار وتفعيل الحسابات الموقوفة"
       />
       <UsersManager users={users} currentUserId={profile.id} />
     </PageShell>
