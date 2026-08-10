@@ -90,6 +90,8 @@ model Item {
   code           String?
   /// عدد المادة / الكمية لهذا الصنف (حقل وصفي قابل للتعديل يدوياً)
   quantity       Int           @default(1)
+  /// الحد الأدنى للتنبيه — 0 يعني بلا تنبيه مخزون منخفض
+  minQuantity    Int           @default(0)
   categoryId     String
   category       Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   notes          String?

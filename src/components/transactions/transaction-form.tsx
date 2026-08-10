@@ -72,6 +72,7 @@ export function TransactionForm({
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [quantity, setQuantity] = useState("1");
+  const [minQuantity, setMinQuantity] = useState("0");
   const [notes, setNotes] = useState("");
   const [searchResults, setSearchResults] = useState<TransactionFormItem[] | null>(
     null,
@@ -159,6 +160,7 @@ export function TransactionForm({
         categoryId,
         code: code || null,
         quantity: Number(quantity),
+        minQuantity: Number(minQuantity),
         notes: notes || null,
       };
     } else if (type === "ISSUE") {
@@ -180,6 +182,9 @@ export function TransactionForm({
       const result = await createTransactionAction(payload);
       if (result.success) {
         toast.success(result.message ?? "تم بنجاح");
+        if (result.warning) {
+          toast.warning(result.warning, { duration: 10_000 });
+        }
         setItemId("");
         setSelectedItem(null);
         setMachineId("");
@@ -272,6 +277,22 @@ export function TransactionForm({
                   dir="ltr"
                   required
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="minQuantity">الحد الأدنى للتنبيه</Label>
+                <Input
+                  id="minQuantity"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  step={1}
+                  value={minQuantity}
+                  onChange={(e) => setMinQuantity(e.target.value)}
+                  dir="ltr"
+                />
+                <p className={ui.subtitle}>
+                  0 = بلا تنبيه. يُنبَّه عند الكمية ≤ هذا الحد.
+                </p>
               </div>
             </>
           ) : (

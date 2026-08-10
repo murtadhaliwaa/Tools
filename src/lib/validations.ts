@@ -35,16 +35,26 @@ export const machineSchema = z.object({
   location: z.string().max(200).optional().nullable(),
 });
 
+const quantityField = z.coerce
+  .number({ error: "عدد المادة غير صالح" })
+  .int("عدد المادة يجب أن يكون عدداً صحيحاً")
+  .min(0, "عدد المادة لا يمكن أن يكون سالباً")
+  .max(1_000_000, "عدد المادة كبير جداً");
+
+const minQuantityField = z.coerce
+  .number({ error: "الحد الأدنى غير صالح" })
+  .int("الحد الأدنى يجب أن يكون عدداً صحيحاً")
+  .min(0, "الحد الأدنى لا يمكن أن يكون سالباً")
+  .max(1_000_000, "الحد الأدنى كبير جداً")
+  .default(0);
+
 export const itemSchema = z.object({
   name: z.string().min(1, "اسم الأداة مطلوب").max(150),
   code: z.string().max(50).optional().nullable(),
   categoryId: z.string().min(1, "التصنيف مطلوب"),
-  quantity: z.coerce
-    .number({ error: "عدد المادة غير صالح" })
-    .int("عدد المادة يجب أن يكون عدداً صحيحاً")
-    .min(0, "عدد المادة لا يمكن أن يكون سالباً")
-    .max(1_000_000, "عدد المادة كبير جداً")
-    .default(1),
+  quantity: quantityField.default(1),
+  /** 0 = بلا تنبيه نفاد */
+  minQuantity: minQuantityField,
   notes: z.string().max(500).optional().nullable(),
 });
 
@@ -85,12 +95,8 @@ export const additionSchema = transactionBaseSchema.extend({
   name: z.string().min(1, "اسم الأداة مطلوب"),
   categoryId: z.string().min(1, "التصنيف مطلوب"),
   code: z.string().max(50).optional().nullable(),
-  quantity: z.coerce
-    .number({ error: "عدد المادة غير صالح" })
-    .int("عدد المادة يجب أن يكون عدداً صحيحاً")
-    .min(0, "عدد المادة لا يمكن أن يكون سالباً")
-    .max(1_000_000, "عدد المادة كبير جداً")
-    .default(1),
+  quantity: quantityField.default(1),
+  minQuantity: minQuantityField,
 });
 
 export const issueSchema = transactionBaseSchema.extend({

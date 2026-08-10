@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import type { ItemWithStatus } from "@/services/items";
 import { getItemStatusById } from "@/services/items";
 import { deriveItemStatus } from "@/services/item-status";
+import { isLowStock } from "@/lib/stock";
 import type { TransactionType } from "@/generated/prisma/client";
 
 /** حجم صفحة واجهة التقارير */
@@ -91,6 +92,7 @@ export async function getRepairStatusReport(
       name: string;
       code: string | null;
       quantity: number;
+      min_quantity: number;
       notes: string | null;
       category_id: string;
       category_name: string;
@@ -108,6 +110,7 @@ export async function getRepairStatusReport(
         i.name,
         i.code,
         i.quantity,
+        i."minQuantity" AS min_quantity,
         i.notes,
         i."categoryId" AS category_id,
         c.name AS category_name,
@@ -141,20 +144,24 @@ export async function getRepairStatusReport(
 
   return {
     rows: rows.map((row) => {
+      const quantity = Number(row.quantity ?? 1);
+      const minQuantity = Number(row.min_quantity ?? 0);
       const status = deriveItemStatus(
         row.last_type as TransactionType,
-        Number(row.quantity ?? 1),
+        quantity,
       );
       const item: ItemWithStatus & { since: Date } = {
         id: row.id,
         name: row.name,
         code: row.code,
-        quantity: Number(row.quantity ?? 1),
+        quantity,
+        minQuantity,
         notes: row.notes,
         categoryId: row.category_id,
         categoryName: row.category_name,
         createdAt: row.created_at,
         status,
+        lowStock: isLowStock(quantity, minQuantity),
         machineId: null,
         machineName: null,
         lastTransactionAt: row.last_at,

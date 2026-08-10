@@ -5,18 +5,27 @@ import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireUser } from "@/lib/auth";
 import { getDashboardStatsCached } from "@/lib/cache";
-import { getRecentTransactions } from "@/services/dashboard";
+import { getLowStockItems, getRecentTransactions } from "@/services/dashboard";
 import { formatDateTime } from "@/lib/format";
-import { TransactionTypeBadge } from "@/components/shared/status-badge";
+import {
+  LowStockBadge,
+  TransactionTypeBadge,
+} from "@/components/shared/status-badge";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
-import { Package, Wrench, Activity, CheckCircle2 } from "lucide-react";
+import {
+  Package,
+  Wrench,
+  Activity,
+  CheckCircle2,
+  TriangleAlert,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ui } from "@/lib/ui";
 
 function StatsSkeleton() {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-      {Array.from({ length: 5 }).map((_, i) => (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {Array.from({ length: 6 }).map((_, i) => (
         <Skeleton key={i} className="h-28 rounded-xl" />
       ))}
     </div>
@@ -30,15 +39,21 @@ async function StatsSection({ organizationId }: { organizationId: string }) {
     { title: "متوفرة", value: stats.available, icon: CheckCircle2 },
     { title: "عند مكينة / بلا رصيد", value: stats.issued, icon: Package },
     { title: "تحت التصليح", value: stats.inRepair, icon: Wrench },
+    {
+      title: "مخزون منخفض",
+      value: stats.lowStock,
+      icon: TriangleAlert,
+      href: stats.lowStock > 0 ? "/items?stock=low" : undefined,
+    },
     { title: "حركات هذا الشهر", value: stats.monthTransactions, icon: Activity },
   ];
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {cards.map((card) => {
         const Icon = card.icon;
-        return (
-          <Card key={card.title}>
+        const body = (
+          <>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 {card.title}
@@ -48,10 +63,74 @@ async function StatsSection({ organizationId }: { organizationId: string }) {
             <CardContent>
               <p className="text-3xl font-bold">{card.value}</p>
             </CardContent>
-          </Card>
+          </>
         );
+
+        if (card.href) {
+          return (
+            <Link
+              key={card.title}
+              href={card.href}
+              className={cn(ui.cardHover, "rounded-xl block")}
+            >
+              <Card className="h-full border-destructive/40">{body}</Card>
+            </Link>
+          );
+        }
+
+        return <Card key={card.title}>{body}</Card>;
       })}
     </div>
+  );
+}
+
+async function LowStockSection({ organizationId }: { organizationId: string }) {
+  const items = await getLowStockItems(organizationId, 8);
+  if (items.length === 0) return null;
+
+  return (
+    <Card className="border-destructive/40">
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <TriangleAlert className="size-4 text-destructive" />
+          تنبيه نفاد المخزون
+        </CardTitle>
+        <Link
+          href="/items?stock=low"
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+        >
+          عرض الكل
+        </Link>
+      </CardHeader>
+      <CardContent>
+        <ul className="divide-y">
+          {items.map((item) => (
+            <li
+              key={item.id}
+              className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">{item.name}</span>
+                  <LowStockBadge
+                    quantity={item.quantity}
+                    minQuantity={item.minQuantity}
+                  />
+                </div>
+                {item.code ? (
+                  <p className="text-xs text-muted-foreground" dir="ltr">
+                    {item.code}
+                  </p>
+                ) : null}
+              </div>
+              <p className="text-sm text-muted-foreground" dir="ltr">
+                {item.quantity} / حد {item.minQuantity}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -112,6 +191,10 @@ export default async function DashboardPage() {
 
       <Suspense fallback={<StatsSkeleton />}>
         <StatsSection organizationId={profile.organizationId} />
+      </Suspense>
+
+      <Suspense fallback={null}>
+        <LowStockSection organizationId={profile.organizationId} />
       </Suspense>
 
       <Suspense fallback={<Skeleton className="h-64 w-full rounded-xl" />}>

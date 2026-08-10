@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { deriveItemStatus, quantityDeltaOnDelete } from "@/services/item-status";
+import { isLowStock, lowStockSeverity } from "@/lib/stock";
 import { ItemStatus, TransactionTypeLabel } from "@/types/domain";
 import {
   signupSchema,
@@ -153,6 +154,21 @@ describe("catalog schemas", () => {
         quantity: -1,
       }).success,
     ).toBe(false);
+    expect(
+      itemSchema.safeParse({
+        name: "مفك",
+        categoryId: "cat1",
+        quantity: 5,
+        minQuantity: 2,
+      }).success,
+    ).toBe(true);
+    expect(
+      itemSchema.safeParse({
+        name: "مفك",
+        categoryId: "cat1",
+        minQuantity: -1,
+      }).success,
+    ).toBe(false);
   });
 });
 
@@ -239,6 +255,18 @@ describe("quantityDeltaOnDelete", () => {
     expect(quantityDeltaOnDelete("ADDITION")).toBe(0);
     expect(quantityDeltaOnDelete("SEND_TO_REPAIR")).toBe(0);
     expect(quantityDeltaOnDelete("RETURN_FROM_REPAIR")).toBe(0);
+  });
+});
+
+describe("low stock helpers", () => {
+  it("alerts when quantity is at or below a positive min", () => {
+    expect(isLowStock(5, 0)).toBe(false);
+    expect(isLowStock(5, 5)).toBe(true);
+    expect(isLowStock(2, 5)).toBe(true);
+    expect(isLowStock(6, 5)).toBe(false);
+    expect(lowStockSeverity(0, 3)).toBe("critical");
+    expect(lowStockSeverity(2, 3)).toBe("warning");
+    expect(lowStockSeverity(3, 0)).toBe(null);
   });
 });
 

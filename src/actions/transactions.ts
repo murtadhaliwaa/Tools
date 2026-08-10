@@ -13,7 +13,27 @@ import {
   reverseQuantityAfterDelete,
 } from "@/services/transactions";
 import type { ItemStatus } from "@/types/domain";
+import { lowStockSeverity } from "@/lib/stock";
 import { type ActionResult, guardRate, toActionError } from "@/actions/shared";
+
+/** رسالة تنبيه فورية إن بلغت المادة حدّها الأدنى بعد الصرف */
+async function lowStockWarning(
+  itemId: string,
+  organizationId: string,
+): Promise<string | undefined> {
+  const item = await prisma.item.findFirst({
+    where: { id: itemId, organizationId, deletedAt: null },
+    select: { name: true, quantity: true, minQuantity: true },
+  });
+  if (!item) return undefined;
+
+  const severity = lowStockSeverity(item.quantity, item.minQuantity);
+  if (!severity) return undefined;
+
+  return severity === "critical"
+    ? `تنبيه: ${item.name} نفدت من المخزون`
+    : `تنبيه: ${item.name} بلغت الحد الأدنى (المتبقي ${item.quantity} من حد ${item.minQuantity})`;
+}
 
 export async function searchTransactionItemsAction(
   query: string,
@@ -57,7 +77,13 @@ export async function createTransactionAction(
     revalidatePath("/reports");
     bustItemOptionsCache(profile.organizationId);
     bustReportsCache(profile.organizationId);
-    return { success: true, message: "تم تسجيل الحركة بنجاح" };
+
+    const warning =
+      parsed.type === "ISSUE"
+        ? await lowStockWarning(parsed.itemId, profile.organizationId)
+        : undefined;
+
+    return { success: true, message: "تم تسجيل الحركة بنجاح", warning };
   } catch (error) {
     return toActionError(error);
   }

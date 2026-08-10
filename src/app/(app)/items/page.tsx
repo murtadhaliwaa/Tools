@@ -12,7 +12,6 @@ import { param, type SearchParams } from "@/lib/search-params";
 import { cn } from "@/lib/utils";
 import { ui } from "@/lib/ui";
 
-
 function parseStatus(value?: string): ItemStatusType | undefined {
   if (!value) return undefined;
   if (
@@ -23,6 +22,10 @@ function parseStatus(value?: string): ItemStatusType | undefined {
     return value;
   }
   return undefined;
+}
+
+function parseStock(value?: string): "low" | undefined {
+  return value === "low" ? "low" : undefined;
 }
 
 export default async function ItemsPage({
@@ -36,6 +39,7 @@ export default async function ItemsPage({
   const q = param(sp.q);
   const categoryId = param(sp.categoryId);
   const status = parseStatus(param(sp.status));
+  const stock = parseStock(param(sp.stock));
 
   const [result, categories] = await Promise.all([
     listItemsWithStatus({
@@ -45,6 +49,7 @@ export default async function ItemsPage({
       search: q,
       categoryId,
       status,
+      stock,
     }),
     getCategoriesCached(profile.organizationId),
   ]);
@@ -55,6 +60,7 @@ export default async function ItemsPage({
     if (q) params.set("q", q);
     if (categoryId) params.set("categoryId", categoryId);
     if (status) params.set("status", status);
+    if (stock) params.set("stock", stock);
     return `/items?${params.toString()}`;
   }
 
@@ -72,7 +78,7 @@ export default async function ItemsPage({
         <CardContent>
           <ItemsFilters
             categories={categories}
-            initial={{ q, categoryId, status }}
+            initial={{ q, categoryId, status, stock }}
           />
         </CardContent>
       </Card>

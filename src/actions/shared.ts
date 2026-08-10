@@ -6,6 +6,8 @@ import { clientKeyFromHeaders, rateLimit } from "@/lib/rate-limit";
 export type ActionResult = {
   success: boolean;
   message?: string;
+  /** تنبيه إضافي يُعرض مع النجاح (مثل بلوغ الحد الأدنى للمخزون) */
+  warning?: string;
   errors?: Record<string, string[]>;
 };
 

@@ -12,6 +12,7 @@ export async function getDashboardStats(organizationId: string) {
         available: bigint;
         issued: bigint;
         in_repair: bigint;
+        low_stock: bigint;
       }>
     >`
       WITH latest AS (
@@ -32,7 +33,10 @@ export async function getDashboardStats(organizationId: string) {
           WHERE (l.type IS NULL OR l.type <> 'SEND_TO_REPAIR')
             AND i.quantity <= 0
         )::bigint AS issued,
-        COUNT(*) FILTER (WHERE l.type = 'SEND_TO_REPAIR')::bigint AS in_repair
+        COUNT(*) FILTER (WHERE l.type = 'SEND_TO_REPAIR')::bigint AS in_repair,
+        COUNT(*) FILTER (
+          WHERE i."minQuantity" > 0 AND i.quantity <= i."minQuantity"
+        )::bigint AS low_stock
       FROM "Item" i
       LEFT JOIN latest l ON l."itemId" = i.id
       WHERE i."organizationId" = ${organizationId}
@@ -52,8 +56,65 @@ export async function getDashboardStats(organizationId: string) {
     available: Number(row?.available ?? 0),
     issued: Number(row?.issued ?? 0),
     inRepair: Number(row?.in_repair ?? 0),
+    lowStock: Number(row?.low_stock ?? 0),
     monthTransactions,
   };
+}
+
+/** عدد المواد عند/تحت الحد الأدنى — لشريط التنبيه في كل الصفحات */
+export async function getLowStockCount(
+  organizationId: string,
+): Promise<number> {
+  const rows = await prisma.$queryRaw<Array<{ count: bigint }>>`
+    SELECT COUNT(*)::bigint AS count
+    FROM "Item"
+    WHERE "organizationId" = ${organizationId}
+      AND "deletedAt" IS NULL
+      AND "minQuantity" > 0
+      AND quantity <= "minQuantity"
+  `;
+  return Number(rows[0]?.count ?? 0);
+}
+
+export type LowStockItem = {
+  id: string;
+  name: string;
+  code: string | null;
+  quantity: number;
+  minQuantity: number;
+};
+
+/** مواد عند أو تحت الحد الأدنى — الأقرب للنفاد أولاً */
+export async function getLowStockItems(
+  organizationId: string,
+  take = 8,
+): Promise<LowStockItem[]> {
+  const raw = await prisma.$queryRaw<
+    Array<{
+      id: string;
+      name: string;
+      code: string | null;
+      quantity: number;
+      minQuantity: number;
+    }>
+  >`
+    SELECT id, name, code, quantity, "minQuantity"
+    FROM "Item"
+    WHERE "organizationId" = ${organizationId}
+      AND "deletedAt" IS NULL
+      AND "minQuantity" > 0
+      AND quantity <= "minQuantity"
+    ORDER BY quantity ASC, name ASC
+    LIMIT ${take}
+  `;
+
+  return raw.map((r) => ({
+    id: r.id,
+    name: r.name,
+    code: r.code,
+    quantity: Number(r.quantity),
+    minQuantity: Number(r.minQuantity),
+  }));
 }
 
 export async function getRecentTransactions(

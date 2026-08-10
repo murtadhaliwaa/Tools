@@ -21,12 +21,14 @@ export function ItemsFilters({
     q?: string;
     categoryId?: string;
     status?: string;
+    stock?: string;
   };
 }) {
   const { pending, navigate } = useFilterNavigation("/items");
   const [q, setQ] = useState(initial.q ?? "");
   const [categoryId, setCategoryId] = useState(initial.categoryId || "all");
   const [status, setStatus] = useState(initial.status || "all");
+  const [stock, setStock] = useState(initial.stock || "all");
 
   const categoryOptions = useMemo(
     () => [
@@ -47,17 +49,26 @@ export function ItemsFilters({
     [],
   );
 
+  const stockOptions = useMemo(
+    () => [
+      { value: "all", label: "كل المخزون" },
+      { value: "low", label: "منخفض / نفد" },
+    ],
+    [],
+  );
+
   function apply() {
     navigate({
       page: "1",
       q: q.trim() || undefined,
       categoryId: categoryId !== "all" ? categoryId : undefined,
       status: status !== "all" ? status : undefined,
+      stock: stock !== "all" ? stock : undefined,
     });
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
       <div className="space-y-1.5">
         <Label htmlFor="items-search" className={ui.filterLabel}>
           بحث
@@ -84,6 +95,12 @@ export function ItemsFilters({
         value={status}
         onValueChange={setStatus}
         options={statusOptions}
+      />
+      <FilterSelect
+        label="المخزون"
+        value={stock}
+        onValueChange={setStock}
+        options={stockOptions}
       />
       <div className="flex items-end">
         <LoadingButton

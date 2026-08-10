@@ -8,7 +8,7 @@ import {
 } from "@/actions";
 import type { ItemWithStatus } from "@/services/items";
 import { useCrudManager } from "@/hooks/use-crud-manager";
-import { StatusBadge } from "@/components/shared/status-badge";
+import { LowStockBadge, StatusBadge } from "@/components/shared/status-badge";
 import { BusyOverlay } from "@/components/shared/busy-overlay";
 import { LoadingButton } from "@/components/shared/loading-button";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -37,6 +37,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ui } from "@/lib/ui";
+import { cn } from "@/lib/utils";
 
 type CategoryOption = { id: string; name: string };
 
@@ -58,6 +59,7 @@ function ItemFormDialog({
     code: string | null;
     categoryId: string;
     quantity: number;
+    minQuantity: number;
     notes: string | null;
   }) => void;
 }) {
@@ -65,6 +67,7 @@ function ItemFormDialog({
   const [code, setCode] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [quantity, setQuantity] = useState("1");
+  const [minQuantity, setMinQuantity] = useState("0");
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
@@ -74,12 +77,14 @@ function ItemFormDialog({
       setCode(editing.code ?? "");
       setCategoryId(editing.categoryId);
       setQuantity(String(editing.quantity ?? 1));
+      setMinQuantity(String(editing.minQuantity ?? 0));
       setNotes(editing.notes ?? "");
     } else {
       setName("");
       setCode("");
       setCategoryId(categories[0]?.id ?? "");
       setQuantity("1");
+      setMinQuantity("0");
       setNotes("");
     }
   }, [open, editing, categories]);
@@ -134,19 +139,38 @@ function ItemFormDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="item-qty">عدد المادة</Label>
-            <Input
-              id="item-qty"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              step={1}
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              dir="ltr"
-              disabled={pending}
-            />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="item-qty">عدد المادة</Label>
+              <Input
+                id="item-qty"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1}
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                dir="ltr"
+                disabled={pending}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="item-min-qty">الحد الأدنى للتنبيه</Label>
+              <Input
+                id="item-min-qty"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1}
+                value={minQuantity}
+                onChange={(e) => setMinQuantity(e.target.value)}
+                dir="ltr"
+                disabled={pending}
+              />
+              <p className={ui.subtitle}>
+                0 = بلا تنبيه. يُنبَّه عند الكمية ≤ هذا الحد.
+              </p>
+            </div>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="item-notes">ملاحظات (اختياري)</Label>
@@ -164,6 +188,7 @@ function ItemFormDialog({
                 code: code || null,
                 categoryId,
                 quantity: Number(quantity),
+                minQuantity: Number(minQuantity),
                 notes: notes || null,
               })
             }
@@ -196,10 +221,10 @@ function ItemsTable({
     <Table className="table-fixed">
       <TableHeader>
         <TableRow>
-          <TableHead className="w-[26%]">الأداة</TableHead>
-          <TableHead className="w-[20%]">التصنيف</TableHead>
-          <TableHead className="w-[12%]">العدد</TableHead>
-          <TableHead className="w-[20%]">الحالة</TableHead>
+          <TableHead className="w-[24%]">الأداة</TableHead>
+          <TableHead className="w-[18%]">التصنيف</TableHead>
+          <TableHead className="w-[14%]">العدد</TableHead>
+          <TableHead className="w-[22%]">الحالة</TableHead>
           {!readOnly ? (
             <TableHead className="w-[22%]">إجراءات</TableHead>
           ) : null}
@@ -217,7 +242,13 @@ function ItemsTable({
           </TableRow>
         ) : (
           items.map((item) => (
-            <TableRow key={item.id}>
+            <TableRow
+              key={item.id}
+              className={cn(
+                item.lowStock &&
+                  "border-s-4 border-s-destructive bg-destructive/10 hover:bg-destructive/15",
+              )}
+            >
               <TableCell className="whitespace-normal">
                 <div className="font-medium">{item.name}</div>
                 {item.code ? (
@@ -229,10 +260,29 @@ function ItemsTable({
               <TableCell className="whitespace-normal">
                 {item.categoryName}
               </TableCell>
-              <TableCell dir="ltr">{item.quantity}</TableCell>
+              <TableCell>
+                <div className="flex flex-col items-center gap-0.5" dir="ltr">
+                  <span
+                    className={cn(
+                      item.lowStock && "text-lg font-bold text-destructive",
+                    )}
+                  >
+                    {item.quantity}
+                  </span>
+                  {item.minQuantity > 0 ? (
+                    <span className="text-xs text-muted-foreground">
+                      حد {item.minQuantity}
+                    </span>
+                  ) : null}
+                </div>
+              </TableCell>
               <TableCell>
                 <div className="flex flex-col items-center gap-1">
                   <StatusBadge status={item.status} />
+                  <LowStockBadge
+                    quantity={item.quantity}
+                    minQuantity={item.minQuantity}
+                  />
                   {item.machineName ? (
                     <p className="text-xs text-muted-foreground">
                       {item.machineName}

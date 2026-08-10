@@ -170,6 +170,7 @@ export async function createItemAction(input: unknown): Promise<ActionResult> {
         code: data.code,
         categoryId: data.categoryId,
         quantity: data.quantity,
+        minQuantity: data.minQuantity,
         notes: data.notes || "إضافة عبر إدارة الأدوات",
       },
       profile,
@@ -212,12 +213,14 @@ export async function updateItemAction(
         code: data.code || null,
         categoryId: data.categoryId,
         quantity: data.quantity,
+        minQuantity: data.minQuantity,
         notes: data.notes || null,
       },
     });
     const missing = missingIfZero(updated.count, "الأداة غير موجودة");
     if (missing) return missing;
     revalidatePath("/items");
+    revalidatePath("/dashboard");
     bustItemOptionsCache(profile.organizationId);
     return { success: true, message: "تم تحديث الأداة" };
   } catch (error) {

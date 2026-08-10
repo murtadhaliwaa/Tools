@@ -34,6 +34,7 @@ export async function createTransaction(
           code: data.code || null,
           categoryId: data.categoryId,
           quantity: data.quantity,
+          minQuantity: data.minQuantity ?? 0,
           notes: data.notes || null,
         },
       });

@@ -83,6 +83,18 @@ export function getDashboardStatsCached(organizationId: string) {
   )(organizationId);
 }
 
+/** عدد المواد المنخفضة — يُستدعى في كل صفحة، لذا كاش قصير موسوم بالحركات */
+export function getLowStockCountCached(organizationId: string) {
+  return unstable_cache(
+    async (orgId: string) => {
+      const { getLowStockCount } = await import("@/services/dashboard");
+      return getLowStockCount(orgId);
+    },
+    [`low-stock-count`],
+    { revalidate: 30, tags: [CACHE_TAGS.formItems(organizationId)] },
+  )(organizationId);
+}
+
 export function getUsersCached(organizationId: string) {
   return unstable_cache(
     async (orgId: string) => listOrganizationUsers(orgId),
