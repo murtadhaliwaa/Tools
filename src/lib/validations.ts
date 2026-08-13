@@ -149,3 +149,10 @@ export const exportMonthlySchema = z.object({
   year: z.coerce.number().int().min(2020).max(2100),
   month: z.coerce.number().int().min(1).max(12),
 });
+
+export const exportInventorySchema = z.object({
+  categoryId: z.string().min(1).optional(),
+  status: z.enum(["AVAILABLE", "ISSUED", "IN_REPAIR"]).optional(),
+  stock: z.literal("low").optional(),
+  q: z.string().max(100).optional(),
+});

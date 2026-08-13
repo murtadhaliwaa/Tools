@@ -5,6 +5,7 @@
 CREATE OR REPLACE FUNCTION public.enforce_item_same_org()
 RETURNS trigger
 LANGUAGE plpgsql
+SET search_path = public
 AS $$
 BEGIN
   IF NOT EXISTS (
@@ -30,6 +31,7 @@ CREATE TRIGGER trg_item_same_org
 CREATE OR REPLACE FUNCTION public.enforce_transaction_same_org()
 RETURNS trigger
 LANGUAGE plpgsql
+SET search_path = public
 AS $$
 BEGIN
   IF NOT EXISTS (

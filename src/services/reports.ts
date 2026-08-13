@@ -1,8 +1,10 @@
 import { prisma } from "@/lib/db";
 import type { ItemWithStatus } from "@/services/items";
 import { getItemStatusById } from "@/services/items";
+import { listItemsWithStatus } from "@/services/items";
 import { deriveItemStatus } from "@/services/item-status";
 import { isLowStock } from "@/lib/stock";
+import type { ItemStatus } from "@/types/domain";
 import type { TransactionType } from "@/generated/prisma/client";
 
 /** حجم صفحة واجهة التقارير */
@@ -365,4 +367,37 @@ export async function getTopIssuedItems(
   `;
 
   return rows.map((r) => ({ name: r.name, value: Number(r.value) }));
+}
+
+/** جرد المخزون — كل المواد النشطة ورصيدها الحالي */
+export async function getInventoryReport(params: {
+  organizationId: string;
+  categoryId?: string;
+  status?: ItemStatus;
+  stock?: "low";
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  const pageSize = clampPageSize(
+    params.pageSize,
+    EXPORT_ROW_LIMIT,
+    REPORT_PAGE_SIZE,
+  );
+  const result = await listItemsWithStatus({
+    organizationId: params.organizationId,
+    categoryId: params.categoryId,
+    status: params.status,
+    stock: params.stock,
+    search: params.search,
+    page: params.page,
+    pageSize,
+  });
+  const totalQuantity = result.rows.reduce((sum, row) => sum + row.quantity, 0);
+  return {
+    ...result,
+    totalQuantity,
+    truncated: result.total > result.rows.length,
+    limit: pageSize,
+  };
 }

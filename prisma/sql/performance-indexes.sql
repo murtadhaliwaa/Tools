@@ -1,7 +1,25 @@
 -- فهارس أداء إضافية (Partial + Trigram)
 -- التشغيل: npx prisma db execute --file prisma/sql/performance-indexes.sql
 
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
+-- pg_trgm في schema extensions (توصية Supabase Security Advisor)
+CREATE SCHEMA IF NOT EXISTS extensions;
+GRANT USAGE ON SCHEMA extensions TO PUBLIC;
+
+CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA extensions;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_extension e
+    JOIN pg_namespace n ON n.oid = e.extnamespace
+    WHERE e.extname = 'pg_trgm'
+      AND n.nspname = 'public'
+  ) THEN
+    ALTER EXTENSION pg_trgm SET SCHEMA extensions;
+  END IF;
+END
+$$;
 
 -- تفرد الأسماء/الرموز للعناصر النشطة فقط (بدل إعادة تسمية عند الحذف الناعم)
 ALTER TABLE "Category" DROP CONSTRAINT IF EXISTS "Category_organizationId_name_key";
@@ -30,10 +48,10 @@ CREATE INDEX IF NOT EXISTS "Item_org_active_category_idx"
 
 -- بحث ILIKE بالاسم/الرمز
 CREATE INDEX IF NOT EXISTS "Item_name_trgm_idx"
-  ON "Item" USING gin (name gin_trgm_ops);
+  ON "Item" USING gin (name extensions.gin_trgm_ops);
 
 CREATE INDEX IF NOT EXISTS "Item_code_trgm_idx"
-  ON "Item" USING gin (code gin_trgm_ops)
+  ON "Item" USING gin (code extensions.gin_trgm_ops)
   WHERE code IS NOT NULL;
 
 -- تصنيفات / مكائن نشطة

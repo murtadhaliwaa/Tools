@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  loadInventoryExportRows,
   loadItemTimelineExportRows,
   loadMachineExportRows,
   loadMaterialExportRows,
@@ -91,6 +92,41 @@ export function MonthlyReportExport(
       limitHint={EXPORT_LIMIT_HINT}
       headers={["القسم", "الاسم", "العدد"]}
       getRows={() => loadMonthlyExportRows({ year, month })}
+    />
+  );
+}
+
+export function InventoryReportExport(
+  props: Common & {
+    categoryId?: string;
+    status?: string;
+    stock?: string;
+    q?: string;
+  },
+) {
+  const { categoryId, status, stock, q, ...rest } = props;
+  return (
+    <ExportButtons
+      {...rest}
+      limitHint={EXPORT_LIMIT_HINT}
+      headers={[
+        "المادة",
+        "الرمز",
+        "التصنيف",
+        "العدد",
+        "الحد الأدنى",
+        "الحالة",
+        "المكينة",
+        "تنبيه المخزون",
+      ]}
+      getRows={() =>
+        loadInventoryExportRows({
+          categoryId,
+          status,
+          stock: stock === "low" ? "low" : undefined,
+          q,
+        })
+      }
     />
   );
 }

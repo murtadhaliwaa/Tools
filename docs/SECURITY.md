@@ -43,7 +43,9 @@ ALTER ROLE tool_tracker_app PASSWORD 'كلمة-مرور-قوية-عشوائية'
 - استخدم Pooler مع `pgbouncer=true` ويفضّل `connection_limit=1` على Vercel.
 - يُفضَّل `UPSTASH_REDIS_REST_URL` و `UPSTASH_REDIS_REST_TOKEN` اختيارياً. بدونها يُستخدم جدول `RateLimitBucket` في Postgres لحدّ موحّد عبر المثيلات. لرفض المصادقة عند تعطّل Redis بعد ضبط Upstash: `AUTH_RATE_LIMIT_FAIL_CLOSED=true`.
 - CSP في الإنتاج بدون `unsafe-eval`؛ مسار `/auth/signout` يرفض الطلبات العابرة للمواقع (Sec-Fetch-Site / Origin).
-- بعد `prisma migrate deploy` على الإنتاج نفّذ: `npm run db:sql` (CHECK + سلامة المؤسسة + دور التطبيق + RLS/FORCE + فهارس). الـ migration وحدها لا تكفي. CI يشغّل `db:sql` كاملاً. البناء على Vercel يشغّل `migrate deploy` تلقائياً (انظر `docs/OPS.md`).
+- بعد `prisma migrate deploy` على الإنتاج نفّذ: `npm run db:sql` (CHECK + سلامة المؤسسة + دور التطبيق + RLS/FORCE + **security-hardening** + فهارس). الـ migration وحدها لا تكفي. CI يشغّل `db:sql` كاملاً. البناء على Vercel يشغّل `migrate deploy` تلقائياً (انظر `docs/OPS.md`).
+- **Supabase Security Advisor**: `prisma/sql/security-hardening.sql` يفعّل RLS على `_prisma_migrations` ويقيّد `EXECUTE` على دوال RLS/التريغرات. `performance-indexes.sql` ينقل `pg_trgm` إلى schema `extensions`.
+- **Leaked password protection (HaveIBeenPwned)** في لوحة Supabase يتطلب **خطة Pro** — على المجاني يبقى معطّلاً. التطبيق يفرض كلمة مرور قوية محلياً عبر `passwordSchema` (8+ أحرف، حرف ورقم).
 - النسخ الاحتياطي وحدود المجاني: `docs/OPS.md`.
 
 ## سلامة البيانات في Postgres

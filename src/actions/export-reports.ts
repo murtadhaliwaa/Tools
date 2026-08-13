@@ -7,6 +7,7 @@ import type { ExportRow } from "@/lib/export-report";
 import { parseDayEnd } from "@/lib/search-params";
 import {
   exportItemSchema,
+  exportInventorySchema,
   exportMachineSchema,
   exportMaterialSchema,
   exportMonthlySchema,
@@ -14,13 +15,14 @@ import {
 import {
   EXPORT_ROW_LIMIT,
   TIMELINE_EXPORT_LIMIT,
+  getInventoryReport,
   getItemTimeline,
   getMachineReport,
   getMaterialReport,
   getMonthlySummary,
   getRepairStatusReport,
 } from "@/services/reports";
-import { TransactionTypeLabel } from "@/types/domain";
+import { ItemStatusLabel, TransactionTypeLabel } from "@/types/domain";
 import { guardRate } from "@/actions/shared";
 
 export type ExportResult = {
@@ -206,6 +208,51 @@ export async function loadMonthlyExportRows(
           count,
         ]),
       ],
+    };
+  } catch (error) {
+    return exportError(error);
+  }
+}
+
+function inventoryStockLabel(quantity: number, lowStock: boolean): string {
+  if (!lowStock) return "";
+  return quantity <= 0 ? "نفدت" : "قاربت النفاد";
+}
+
+export async function loadInventoryExportRows(
+  input: unknown,
+): Promise<ExportResult> {
+  try {
+    const rateError = await requireExportRate();
+    if (rateError) return { rows: [], error: rateError };
+    const { profile } = await requireUser();
+    const parsed = exportInventorySchema.safeParse(input);
+    if (!parsed.success) {
+      return { rows: [], error: "تحقق من فلاتر التصدير" };
+    }
+    const report = await getInventoryReport({
+      organizationId: profile.organizationId,
+      categoryId: parsed.data.categoryId,
+      status: parsed.data.status,
+      stock: parsed.data.stock,
+      search: parsed.data.q?.trim() || undefined,
+      page: 1,
+      pageSize: EXPORT_ROW_LIMIT,
+    });
+    return {
+      rows: report.rows.map((r) => [
+        r.name,
+        r.code,
+        r.categoryName,
+        r.quantity,
+        r.minQuantity > 0 ? r.minQuantity : "",
+        ItemStatusLabel[r.status],
+        r.machineName,
+        inventoryStockLabel(r.quantity, r.lowStock),
+      ]),
+      truncated: report.truncated,
+      limit: report.limit,
+      total: report.total,
     };
   } catch (error) {
     return exportError(error);

@@ -36,7 +36,13 @@ npm run db:backup
 
 لا حاجة لإعداد Redis يدوياً؛ الحد موحّد عبر مثيلات Vercel عبر Postgres.
 
-## 4) عند نفاد حدود المجاني (Supabase / Vercel)
+## 5) Supabase Security Advisor
+
+بعد `npm run db:sql` يُطبَّق `security-hardening.sql` (RLS على `_prisma_migrations`، تقييد EXECUTE على الدوال).
+
+**Leaked password protection** في Auth → Providers → Email يتطلب **خطة Pro** على Supabase؛ على المجاني يبقى تحذيراً في Advisor. التطبيق يتحقق من قوة كلمة المرور محلياً.
+
+لإعادة فحص Advisor: Supabase Dashboard → Advisors → Security → **Rerun linter**.
 
 | العَرَض | السبب الشائع | ماذا يفعل التطبيق | ماذا يحدث تلقائياً / العلاج |
 |---------|--------------|-------------------|------------------------------|

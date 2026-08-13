@@ -14,7 +14,7 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:indexes": "prisma db execute --file prisma/sql/performance-indexes.sql",
-    "db:sql": "prisma db execute --file prisma/sql/check-constraints.sql && prisma db execute --file prisma/sql/org-integrity.sql && prisma db execute --file prisma/sql/app-db-role.sql && prisma db execute --file prisma/sql/rls-policies.sql && prisma db execute --file prisma/sql/performance-indexes.sql",
+    "db:sql": "prisma db execute --file prisma/sql/check-constraints.sql && prisma db execute --file prisma/sql/org-integrity.sql && prisma db execute --file prisma/sql/app-db-role.sql && prisma db execute --file prisma/sql/rls-policies.sql && prisma db execute --file prisma/sql/security-hardening.sql && prisma db execute --file prisma/sql/performance-indexes.sql",
     "db:setup": "prisma db push && npm run db:sql",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
