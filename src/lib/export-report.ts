@@ -104,20 +104,29 @@ export async function downloadExcelReport(params: {
   );
 }
 
-/**
- * PDF بدون html2canvas (يتعارض مع ألوان oklch في Tailwind).
- * يرسم الجدول على Canvas بخط النظام ثم يضمّنه في jsPDF.
- */
-export async function downloadPdfReport(params: {
-  filename: string;
-  title: string;
-  headers: string[];
-  rows: ExportRow[];
-}) {
-  const jspdfMod = await import("jspdf");
-  const jsPDF = jspdfMod.jsPDF ?? jspdfMod.default;
+type PdfTableLayout = {
+  scale: number;
+  padX: number;
+  padY: number;
+  titleSize: number;
+  titleGap: number;
+  cellFont: number;
+  lineHeight: number;
+  tableWidth: number;
+  tableLeft: number;
+  canvasW: number;
+  colWidths: number[];
+  headerRowH: number;
+  headerLines: string[][];
+  bodyLineRows: string[][][];
+  bodyRowHeights: number[];
+};
 
-  const colCount = Math.max(params.headers.length, 1);
+function buildPdfTableLayout(
+  headers: string[],
+  rows: ExportRow[],
+): PdfTableLayout {
+  const colCount = Math.max(headers.length, 1);
   const scale = 2;
   const padX = 20;
   const padY = 24;
@@ -128,11 +137,9 @@ export async function downloadPdfReport(params: {
   const cellPadY = 7;
   const minRowH = 32;
   const titleGap = 16;
-  // عرض مناسب لـ A4 عمودي — يتجنّب صفحة أفقية صغيرة على الموبايل
   const tableWidth = Math.min(700, 140 + colCount * 110);
 
-  // أعمدة أوسع للملاحظات/النصوص الطويلة (آخر عمود بصرياً في RTL = أول فهرس بيانات غالباً «ملاحظات»)
-  const weights = params.headers.map((h) => {
+  const weights = headers.map((h) => {
     if (h.includes("ملاحظات") || h.includes("ملاحظ")) return 2.4;
     if (h.includes("تاريخ")) return 1.5;
     if (h.includes("بواسطة") || h.includes("اسم")) return 1.2;
@@ -145,11 +152,11 @@ export async function downloadPdfReport(params: {
   if (!measureCtx) throw new Error("تعذر إنشاء الرسم");
   measureCtx.font = `${cellFont}px Tahoma, "Segoe UI", Arial, sans-serif`;
 
-  const headerLines = params.headers.map((header, i) =>
+  const headerLines = headers.map((header, i) =>
     wrapText(measureCtx, header, colWidths[i]! - cellPadX * 2),
   );
-  const bodyLineRows = params.rows.map((row) =>
-    params.headers.map((_, i) =>
+  const bodyLineRows = rows.map((row) =>
+    headers.map((_, i) =>
       wrapText(measureCtx, cellText(row[i]), colWidths[i]! - cellPadX * 2),
     ),
   );
@@ -164,10 +171,88 @@ export async function downloadPdfReport(params: {
       Math.max(...cells.map((l) => l.length)) * lineHeight + cellPadY * 2,
     ),
   );
+
+  return {
+    scale,
+    padX,
+    padY,
+    titleSize,
+    titleGap,
+    cellFont,
+    lineHeight,
+    tableWidth,
+    tableLeft: padX,
+    canvasW: tableWidth + padX * 2,
+    colWidths,
+    headerRowH,
+    headerLines,
+    bodyLineRows,
+    bodyRowHeights,
+  };
+}
+
+function paginatePdfRows(
+  layout: PdfTableLayout,
+  usableFirstPageCss: number,
+  usableNextPageCss: number,
+): number[][] {
+  const { headerRowH, bodyRowHeights } = layout;
+  const pages: number[][] = [];
+  let currentRows: number[] = [];
+  let currentHeight = headerRowH;
+  let isFirstPage = true;
+
+  for (let rowIndex = 0; rowIndex < bodyRowHeights.length; rowIndex++) {
+    const rowH = bodyRowHeights[rowIndex]!;
+    const limit = isFirstPage ? usableFirstPageCss : usableNextPageCss;
+
+    if (currentHeight + rowH > limit && currentRows.length > 0) {
+      pages.push(currentRows);
+      currentRows = [];
+      currentHeight = headerRowH;
+      isFirstPage = false;
+    }
+
+    currentRows.push(rowIndex);
+    currentHeight += rowH;
+  }
+
+  if (currentRows.length > 0 || pages.length === 0) {
+    pages.push(currentRows);
+  }
+
+  return pages;
+}
+
+function renderPdfPageCanvas(
+  title: string,
+  layout: PdfTableLayout,
+  rowIndices: number[],
+  showTitle: boolean,
+): HTMLCanvasElement {
+  const {
+    scale,
+    padX,
+    padY,
+    titleSize,
+    titleGap,
+    cellFont,
+    lineHeight,
+    tableWidth,
+    tableLeft,
+    canvasW,
+    colWidths,
+    headerRowH,
+    headerLines,
+    bodyLineRows,
+    bodyRowHeights,
+  } = layout;
+
+  const titleBlockH = showTitle ? titleSize + titleGap : 0;
   const tableHeight =
-    headerRowH + bodyRowHeights.reduce((sum, h) => sum + h, 0);
-  const canvasW = tableWidth + padX * 2;
-  const canvasH = padY * 2 + titleSize + titleGap + tableHeight;
+    headerRowH +
+    rowIndices.reduce((sum, i) => sum + bodyRowHeights[i]!, 0);
+  const canvasH = padY * 2 + titleBlockH + tableHeight;
 
   const canvas = document.createElement("canvas");
   canvas.width = canvasW * scale;
@@ -176,28 +261,21 @@ export async function downloadPdfReport(params: {
   if (!rawCtx) throw new Error("تعذر إنشاء الرسم");
   const ctx = rawCtx;
 
-  const maxCanvasCssHeight = Math.floor(32000 / scale);
-  if (canvasH > maxCanvasCssHeight) {
-    throw new Error(
-      "التقرير كبير جداً لتصدير PDF دفعة واحدة — قلّص الفترة أو صدّر Excel",
-    );
-  }
-
   ctx.scale(scale, scale);
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, canvasW, canvasH);
   ctx.direction = "rtl";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = `bold ${titleSize}px Tahoma, "Segoe UI", Arial, sans-serif`;
-  ctx.fillStyle = "#111111";
-  ctx.fillText(params.title, canvasW / 2, padY + titleSize / 2);
 
-  const tableTop = padY + titleSize + titleGap;
-  const tableLeft = padX;
+  if (showTitle) {
+    ctx.font = `bold ${titleSize}px Tahoma, "Segoe UI", Arial, sans-serif`;
+    ctx.fillStyle = "#111111";
+    ctx.fillText(title, canvasW / 2, padY + titleSize / 2);
+  }
 
-  // إزاحة الأعمدة من اليمين (RTL): العمود البصري 0 أقصى اليمين = آخر عمود بيانات أو العكس
-  // نرسم الفهرس visualIndex من اليمين: col 0 = يمين الجدول = headers[0]
+  const tableTop = padY + titleBlockH;
+
   function colX(visualIndex: number) {
     let x = tableLeft + tableWidth;
     for (let i = 0; i <= visualIndex; i++) {
@@ -236,14 +314,14 @@ export async function downloadPdfReport(params: {
   }
 
   let y = tableTop;
-  params.headers.forEach((_, visualIndex) => {
-    drawCellBox(visualIndex, y, headerRowH, headerLines[visualIndex]!, true, false);
+  headerLines.forEach((lines, visualIndex) => {
+    drawCellBox(visualIndex, y, headerRowH, lines, true, false);
   });
   y += headerRowH;
 
-  bodyLineRows.forEach((cells, rowIndex) => {
+  rowIndices.forEach((rowIndex) => {
     const height = bodyRowHeights[rowIndex]!;
-    cells.forEach((lines, visualIndex) => {
+    bodyLineRows[rowIndex]!.forEach((lines, visualIndex) => {
       drawCellBox(
         visualIndex,
         y,
@@ -256,27 +334,67 @@ export async function downloadPdfReport(params: {
     y += height;
   });
 
-  // دائماً عمودي — أوضح على الموبايل والطابعة العادية
+  return canvas;
+}
+
+/**
+ * PDF بدون html2canvas (يتعارض مع ألوان oklch في Tailwind).
+ * يرسم كل صفحة على Canvas منفصل مع تقسيم عند حدود الصفوف — لا يُقطع الصف من المنتصف.
+ */
+export async function downloadPdfReport(params: {
+  filename: string;
+  title: string;
+  headers: string[];
+  rows: ExportRow[];
+}) {
+  const jspdfMod = await import("jspdf");
+  const jsPDF = jspdfMod.jsPDF ?? jspdfMod.default;
+
+  const layout = buildPdfTableLayout(params.headers, params.rows);
+  const { scale, padY, titleSize, titleGap, canvasW, headerRowH, bodyRowHeights } =
+    layout;
+
   const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 22;
   const imgWidth = pageWidth - margin * 2;
-  const imgHeight = (canvasH * imgWidth) / canvasW;
-  const imgData = canvas.toDataURL("image/png");
 
-  let heightLeft = imgHeight;
-  let position = margin;
+  const cssToPt = imgWidth / canvasW;
+  const contentHeightPt = pageHeight - margin * 2;
+  const titleBlockCss = titleSize + titleGap;
+  const usableFirstPageCss =
+    contentHeightPt / cssToPt - padY * 2 - titleBlockCss;
+  const usableNextPageCss = contentHeightPt / cssToPt - padY * 2;
 
-  doc.addImage(imgData, "PNG", margin, position, imgWidth, imgHeight);
-  heightLeft -= pageHeight - margin * 2;
-
-  while (heightLeft > 0) {
-    position = margin - (imgHeight - heightLeft);
-    doc.addPage();
-    doc.addImage(imgData, "PNG", margin, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight - margin * 2;
+  const singleRowTooTall =
+    bodyRowHeights.length > 0 &&
+    headerRowH + bodyRowHeights[0]! >
+      Math.max(usableFirstPageCss, usableNextPageCss);
+  if (singleRowTooTall) {
+    throw new Error("صف في التقرير أطول من الصفحة — قلّص النص أو صدّر Excel");
   }
+
+  const pages = paginatePdfRows(
+    layout,
+    usableFirstPageCss,
+    usableNextPageCss,
+  );
+
+  pages.forEach((rowIndices, pageIndex) => {
+    if (pageIndex > 0) doc.addPage();
+
+    const pageCanvas = renderPdfPageCanvas(
+      params.title,
+      layout,
+      rowIndices,
+      pageIndex === 0,
+    );
+    const pageCanvasH = pageCanvas.height / scale;
+    const imgHeight = pageCanvasH * cssToPt;
+    const imgData = pageCanvas.toDataURL("image/png");
+    doc.addImage(imgData, "PNG", margin, margin, imgWidth, imgHeight);
+  });
 
   const name = params.filename.endsWith(".pdf")
     ? params.filename
