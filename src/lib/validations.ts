@@ -156,3 +156,10 @@ export const exportInventorySchema = z.object({
   stock: z.literal("low").optional(),
   q: z.string().max(100).optional(),
 });
+
+export const exportIssuesSchema = z.object({
+  from: optionalDateString,
+  to: optionalDateString,
+  machineId: z.string().min(1).optional(),
+  itemId: z.string().min(1).optional(),
+});

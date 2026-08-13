@@ -401,3 +401,64 @@ export async function getInventoryReport(params: {
     limit: pageSize,
   };
 }
+
+/** تقرير الصرف — كل حركات ISSUE في فترة (أسبوع أو مخصص) */
+export async function getIssuesReport(params: {
+  organizationId: string;
+  from?: Date;
+  to?: Date;
+  machineId?: string;
+  itemId?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  const page = clampPage(params.page);
+  const pageSize = clampPageSize(
+    params.pageSize,
+    EXPORT_ROW_LIMIT,
+    REPORT_PAGE_SIZE,
+  );
+
+  const where = {
+    organizationId: params.organizationId,
+    type: "ISSUE" as const,
+    ...(params.machineId ? { machineId: params.machineId } : {}),
+    ...(params.itemId ? { itemId: params.itemId } : {}),
+    ...(params.from || params.to
+      ? {
+          createdAt: {
+            ...(params.from ? { gte: params.from } : {}),
+            ...(params.to ? { lte: params.to } : {}),
+          },
+        }
+      : {}),
+  };
+
+  const [total, rows] = await Promise.all([
+    prisma.transaction.count({ where }),
+    prisma.transaction.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        id: true,
+        createdAt: true,
+        notes: true,
+        item: { select: { id: true, name: true, code: true } },
+        machine: { select: { id: true, name: true } },
+        performedBy: { select: { fullName: true } },
+      },
+    }),
+  ]);
+
+  return {
+    rows,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    truncated: total > rows.length,
+    limit: pageSize,
+  };
+}

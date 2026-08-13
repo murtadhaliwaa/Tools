@@ -2,6 +2,7 @@
 
 import {
   loadInventoryExportRows,
+  loadIssuesExportRows,
   loadItemTimelineExportRows,
   loadMachineExportRows,
   loadMaterialExportRows,
@@ -126,6 +127,27 @@ export function InventoryReportExport(
           stock: stock === "low" ? "low" : undefined,
           q,
         })
+      }
+    />
+  );
+}
+
+export function IssuesReportExport(
+  props: Common & {
+    from: string;
+    to: string;
+    machineId?: string;
+    itemId?: string;
+  },
+) {
+  const { from, to, machineId, itemId, ...rest } = props;
+  return (
+    <ExportButtons
+      {...rest}
+      limitHint={EXPORT_LIMIT_HINT}
+      headers={["الأداة", "الرمز", "المكينة", "بواسطة", "التاريخ", "ملاحظات"]}
+      getRows={() =>
+        loadIssuesExportRows({ from, to, machineId, itemId })
       }
     />
   );

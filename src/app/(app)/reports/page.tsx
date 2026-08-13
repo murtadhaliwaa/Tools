@@ -6,6 +6,11 @@ import { ui } from "@/lib/ui";
 
 const REPORTS = [
   {
+    href: "/reports/issues",
+    title: "تقرير الصرف",
+    description: "كل عمليات الصرف في فترة (هذا الأسبوع افتراضياً) مع تصدير",
+  },
+  {
     href: "/reports/inventory",
     title: "جرد المخزون",
     description: "كل المواد ورصيدها الحالي في المخزن مع تصدير",

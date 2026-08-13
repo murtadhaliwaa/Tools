@@ -8,6 +8,7 @@ import { parseDayEnd } from "@/lib/search-params";
 import {
   exportItemSchema,
   exportInventorySchema,
+  exportIssuesSchema,
   exportMachineSchema,
   exportMaterialSchema,
   exportMonthlySchema,
@@ -16,6 +17,7 @@ import {
   EXPORT_ROW_LIMIT,
   TIMELINE_EXPORT_LIMIT,
   getInventoryReport,
+  getIssuesReport,
   getItemTimeline,
   getMachineReport,
   getMaterialReport,
@@ -249,6 +251,44 @@ export async function loadInventoryExportRows(
         ItemStatusLabel[r.status],
         r.machineName,
         inventoryStockLabel(r.quantity, r.lowStock),
+      ]),
+      truncated: report.truncated,
+      limit: report.limit,
+      total: report.total,
+    };
+  } catch (error) {
+    return exportError(error);
+  }
+}
+
+export async function loadIssuesExportRows(
+  input: unknown,
+): Promise<ExportResult> {
+  try {
+    const rateError = await requireExportRate();
+    if (rateError) return { rows: [], error: rateError };
+    const { profile } = await requireUser();
+    const parsed = exportIssuesSchema.safeParse(input);
+    if (!parsed.success) {
+      return { rows: [], error: "تحقق من فلاتر التصدير" };
+    }
+    const report = await getIssuesReport({
+      organizationId: profile.organizationId,
+      from: parsed.data.from ? new Date(parsed.data.from) : undefined,
+      to: parseDayEnd(parsed.data.to),
+      machineId: parsed.data.machineId,
+      itemId: parsed.data.itemId,
+      page: 1,
+      pageSize: EXPORT_ROW_LIMIT,
+    });
+    return {
+      rows: report.rows.map((r) => [
+        r.item.name,
+        r.item.code,
+        r.machine?.name,
+        r.performedBy.fullName,
+        formatDateTime(r.createdAt),
+        r.notes,
       ]),
       truncated: report.truncated,
       limit: report.limit,
