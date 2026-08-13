@@ -92,7 +92,9 @@ export async function downloadExcelReport(params: {
     column.width = max;
   });
 
-  const buffer = await workbook.xlsx.writeBuffer();
+  const buffer = await workbook.xlsx.writeBuffer({
+    useSharedStrings: true,
+  });
   const name = params.filename.endsWith(".xlsx")
     ? params.filename
     : `${params.filename}.xlsx`;
@@ -102,6 +104,14 @@ export async function downloadExcelReport(params: {
     }),
     name,
   );
+}
+
+/** دقة كافية لـ A4 — JPEG أصغر بكثير من PNG عالي الدقة */
+const PDF_RENDER_SCALE = 1;
+const PDF_JPEG_QUALITY = 0.86;
+
+function canvasToJpegDataUrl(canvas: HTMLCanvasElement, quality: number) {
+  return canvas.toDataURL("image/jpeg", quality);
 }
 
 type PdfTableLayout = {
@@ -127,7 +137,7 @@ function buildPdfTableLayout(
   rows: ExportRow[],
 ): PdfTableLayout {
   const colCount = Math.max(headers.length, 1);
-  const scale = 2;
+  const scale = PDF_RENDER_SCALE;
   const padX = 20;
   const padY = 24;
   const titleSize = 16;
@@ -354,7 +364,12 @@ export async function downloadPdfReport(params: {
   const { scale, padY, titleSize, titleGap, canvasW, headerRowH, bodyRowHeights } =
     layout;
 
-  const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+  const doc = new jsPDF({
+    orientation: "portrait",
+    unit: "pt",
+    format: "a4",
+    compress: true,
+  });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 22;
@@ -392,8 +407,8 @@ export async function downloadPdfReport(params: {
     );
     const pageCanvasH = pageCanvas.height / scale;
     const imgHeight = pageCanvasH * cssToPt;
-    const imgData = pageCanvas.toDataURL("image/png");
-    doc.addImage(imgData, "PNG", margin, margin, imgWidth, imgHeight);
+    const imgData = canvasToJpegDataUrl(pageCanvas, PDF_JPEG_QUALITY);
+    doc.addImage(imgData, "JPEG", margin, margin, imgWidth, imgHeight);
   });
 
   const name = params.filename.endsWith(".pdf")
