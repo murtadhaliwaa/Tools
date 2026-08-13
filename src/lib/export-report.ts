@@ -106,12 +106,11 @@ export async function downloadExcelReport(params: {
   );
 }
 
-/** دقة كافية لـ A4 — JPEG أصغر بكثير من PNG عالي الدقة */
-const PDF_RENDER_SCALE = 1;
-const PDF_JPEG_QUALITY = 0.86;
+/** دقة ×2 + PNG — أوضح للنص العربي؛ كل صفحة صورة منفصلة فلا ينتفخ الحجم كالسابق */
+const PDF_RENDER_SCALE = 2;
 
-function canvasToJpegDataUrl(canvas: HTMLCanvasElement, quality: number) {
-  return canvas.toDataURL("image/jpeg", quality);
+function canvasToPngDataUrl(canvas: HTMLCanvasElement) {
+  return canvas.toDataURL("image/png");
 }
 
 type PdfTableLayout = {
@@ -272,6 +271,8 @@ function renderPdfPageCanvas(
   const ctx = rawCtx;
 
   ctx.scale(scale, scale);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, canvasW, canvasH);
   ctx.direction = "rtl";
@@ -407,8 +408,8 @@ export async function downloadPdfReport(params: {
     );
     const pageCanvasH = pageCanvas.height / scale;
     const imgHeight = pageCanvasH * cssToPt;
-    const imgData = canvasToJpegDataUrl(pageCanvas, PDF_JPEG_QUALITY);
-    doc.addImage(imgData, "JPEG", margin, margin, imgWidth, imgHeight);
+    const imgData = canvasToPngDataUrl(pageCanvas);
+    doc.addImage(imgData, "PNG", margin, margin, imgWidth, imgHeight);
   });
 
   const name = params.filename.endsWith(".pdf")
