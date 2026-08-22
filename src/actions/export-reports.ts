@@ -285,6 +285,7 @@ export async function loadIssuesExportRows(
       rows: report.rows.map((r) => [
         r.item.name,
         r.item.code,
+        r.quantity,
         r.machine?.name,
         r.performedBy.fullName,
         formatDateTime(r.createdAt),

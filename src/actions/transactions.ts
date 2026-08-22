@@ -43,6 +43,7 @@ export async function searchTransactionItemsAction(
     name: string;
     code: string | null;
     categoryName: string;
+    quantity: number;
     status: ItemStatus;
     machineName: string | null;
     hasOutstandingIssue: boolean;
@@ -148,6 +149,7 @@ export async function deleteTransactionAction(
         itemId: tx.itemId,
         organizationId: profile.organizationId,
         type: tx.type,
+        quantity: tx.quantity,
       });
 
       await db.transaction.deleteMany({

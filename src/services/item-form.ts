@@ -9,6 +9,7 @@ export type TransactionFormItem = {
   name: string;
   code: string | null;
   categoryName: string;
+  quantity: number;
   status: ItemStatusType;
   machineName: string | null;
   /** هل توجد كميات مصروفة لم تُرجع بعد */
@@ -61,8 +62,8 @@ export async function getItemsForTransactionForm(
       SELECT
         tr."itemId",
         (
-          COUNT(*) FILTER (WHERE tr.type = 'ISSUE')
-          - COUNT(*) FILTER (WHERE tr.type = 'RETURN_FROM_MACHINE')
+          COALESCE(SUM(tr.quantity) FILTER (WHERE tr.type = 'ISSUE'), 0)
+          - COALESCE(SUM(tr.quantity) FILTER (WHERE tr.type = 'RETURN_FROM_MACHINE'), 0)
         )::bigint AS outstanding
       FROM "Transaction" tr
       INNER JOIN matched m ON m.id = tr."itemId"
@@ -103,6 +104,7 @@ export async function getItemsForTransactionForm(
       name: row.name,
       code: row.code,
       categoryName: row.category_name,
+      quantity,
       status,
       machineName: status === ItemStatus.ISSUED ? row.machine_name : null,
       hasOutstandingIssue: Number(row.outstanding ?? 0) > 0,

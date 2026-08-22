@@ -46,6 +46,7 @@ export async function listTransactions(filters: TransactionListFilters) {
       select: {
         id: true,
         type: true,
+        quantity: true,
         notes: true,
         createdAt: true,
         item: { select: { id: true, name: true, code: true } },

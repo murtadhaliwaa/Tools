@@ -444,6 +444,7 @@ export async function getIssuesReport(params: {
       select: {
         id: true,
         createdAt: true,
+        quantity: true,
         notes: true,
         item: { select: { id: true, name: true, code: true } },
         machine: { select: { id: true, name: true } },

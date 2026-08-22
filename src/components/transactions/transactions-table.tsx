@@ -34,6 +34,7 @@ import {
 export type TransactionRow = {
   id: string;
   type: TransactionType;
+  quantity: number;
   notes: string | null;
   createdAt: Date | string;
   item: { id: string; name: string; code: string | null };
@@ -114,6 +115,7 @@ function TransactionsRows({
         <TableRow>
           <TableHead>النوع</TableHead>
           <TableHead>الأداة</TableHead>
+          <TableHead>العدد</TableHead>
           <TableHead>المكينة</TableHead>
           <TableHead>ملاحظات</TableHead>
           <TableHead>بواسطة</TableHead>
@@ -124,7 +126,7 @@ function TransactionsRows({
       <TableBody>
         {rows.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={7} className={ui.emptyCell}>
+            <TableCell colSpan={8} className={ui.emptyCell}>
               لا توجد نتائج
             </TableCell>
           </TableRow>
@@ -138,6 +140,7 @@ function TransactionsRows({
                   <TransactionTypeBadge type={tx.type} />
                 </TableCell>
                 <TableCell>{tx.item.name}</TableCell>
+                <TableCell>{tx.type === "ISSUE" || tx.type === "RETURN_FROM_MACHINE" ? tx.quantity : "—"}</TableCell>
                 <TableCell>{tx.machine?.name ?? "—"}</TableCell>
                 <TableCell className="max-w-[12rem] truncate text-sm text-muted-foreground">
                   {tx.notes || "—"}

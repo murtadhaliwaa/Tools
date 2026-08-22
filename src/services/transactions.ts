@@ -84,8 +84,13 @@ export async function createTransaction(
       if (status === ItemStatus.IN_REPAIR) {
         throw new Error("لا يمكن صرف أداة تحت التصليح");
       }
-      if (item.quantity < 1) {
-        throw new Error("لا يوجد رصيد متاح لهذه المادة");
+      const issueQty = data.quantity;
+      if (item.quantity < issueQty) {
+        throw new Error(
+          issueQty === 1
+            ? "لا يوجد رصيد متاح لهذه المادة"
+            : `الرصيد المتاح ${item.quantity} فقط`,
+        );
       }
 
       const machine = await tx.machine.findFirst({
@@ -102,7 +107,7 @@ export async function createTransaction(
 
       await tx.item.update({
         where: { id: item.id },
-        data: { quantity: { decrement: 1 } },
+        data: { quantity: { decrement: issueQty } },
       });
 
       return tx.transaction.create({
@@ -111,6 +116,7 @@ export async function createTransaction(
           type: "ISSUE",
           itemId: data.itemId,
           machineId: data.machineId,
+          quantity: issueQty,
           notes: data.notes || null,
           performedById: profile.id,
         },
@@ -118,20 +124,17 @@ export async function createTransaction(
     }
 
     if (data.type === "RETURN_FROM_MACHINE") {
-      const issuedNet = await tx.transaction.groupBy({
-        by: ["type"],
-        where: {
-          itemId: data.itemId,
-          type: { in: ["ISSUE", "RETURN_FROM_MACHINE"] },
-        },
-        _count: { _all: true },
-      });
-      const issueCount =
-        issuedNet.find((r) => r.type === "ISSUE")?._count._all ?? 0;
-      const returnCount =
-        issuedNet.find((r) => r.type === "RETURN_FROM_MACHINE")?._count
-          ._all ?? 0;
-      if (issueCount <= returnCount) {
+      const netRows = await tx.$queryRaw<Array<{ net: bigint }>>`
+        SELECT
+          COALESCE(SUM(quantity) FILTER (WHERE type = 'ISSUE'), 0)
+          - COALESCE(SUM(quantity) FILTER (WHERE type = 'RETURN_FROM_MACHINE'), 0)
+          AS net
+        FROM "Transaction"
+        WHERE "itemId" = ${data.itemId}
+          AND type IN ('ISSUE', 'RETURN_FROM_MACHINE')
+      `;
+      const outstanding = Number(netRows[0]?.net ?? 0);
+      if (outstanding < 1) {
         throw new Error("لا توجد كميات مصروفة لإرجاعها");
       }
       if (status === ItemStatus.IN_REPAIR) {
@@ -206,9 +209,10 @@ export async function reverseQuantityAfterDelete(
     itemId: string;
     organizationId: string;
     type: TransactionType;
+    quantity?: number;
   },
 ) {
-  const delta = quantityDeltaOnDelete(input.type);
+  const delta = quantityDeltaOnDelete(input.type, input.quantity ?? 1);
   if (delta === 0) return;
 
   if (delta > 0) {
@@ -225,7 +229,7 @@ export async function reverseQuantityAfterDelete(
 
   await tx.$executeRaw`
     UPDATE "Item"
-    SET quantity = GREATEST(0, quantity - 1)
+    SET quantity = GREATEST(0, quantity + ${delta})
     WHERE id = ${input.itemId}
       AND "organizationId" = ${input.organizationId}
       AND "deletedAt" IS NULL

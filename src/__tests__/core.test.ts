@@ -251,7 +251,9 @@ describe("rateLimit", () => {
 describe("quantityDeltaOnDelete", () => {
   it("reverses stock-affecting types only", () => {
     expect(quantityDeltaOnDelete("ISSUE")).toBe(1);
+    expect(quantityDeltaOnDelete("ISSUE", 5)).toBe(5);
     expect(quantityDeltaOnDelete("RETURN_FROM_MACHINE")).toBe(-1);
+    expect(quantityDeltaOnDelete("RETURN_FROM_MACHINE", 3)).toBe(-3);
     expect(quantityDeltaOnDelete("ADDITION")).toBe(0);
     expect(quantityDeltaOnDelete("SEND_TO_REPAIR")).toBe(0);
     expect(quantityDeltaOnDelete("RETURN_FROM_REPAIR")).toBe(0);

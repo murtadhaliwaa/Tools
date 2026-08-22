@@ -106,6 +106,7 @@ export default async function IssuesReportPage({
             <TableHeader>
               <TableRow>
                 <TableHead>الأداة</TableHead>
+                <TableHead>العدد</TableHead>
                 <TableHead>المكينة</TableHead>
                 <TableHead>بواسطة</TableHead>
                 <TableHead>التاريخ</TableHead>
@@ -115,7 +116,7 @@ export default async function IssuesReportPage({
             <TableBody>
               {report.rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-muted-foreground">
+                  <TableCell colSpan={6} className="text-muted-foreground">
                     لا توجد عمليات صرف في هذه الفترة
                   </TableCell>
                 </TableRow>
@@ -130,6 +131,7 @@ export default async function IssuesReportPage({
                         </div>
                       ) : null}
                     </TableCell>
+                    <TableCell>{r.quantity}</TableCell>
                     <TableCell>{r.machine?.name ?? "—"}</TableCell>
                     <TableCell>{r.performedBy.fullName}</TableCell>
                     <TableCell>{formatDateTime(r.createdAt)}</TableCell>

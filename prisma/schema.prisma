@@ -142,6 +142,8 @@ model Transaction {
   machineId      String?
   machine        Machine?        @relation(fields: [machineId], references: [id], onDelete: Restrict)
   notes          String?
+  /// كمية الحركة (صرف / إرجاع) — افتراضي 1
+  quantity       Int             @default(1)
   performedById  String          @db.Uuid
   performedBy    Profile         @relation(fields: [performedById], references: [id], onDelete: Restrict)
   createdAt      DateTime        @default(now())

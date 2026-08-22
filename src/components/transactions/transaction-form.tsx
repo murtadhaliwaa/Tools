@@ -49,6 +49,7 @@ function toFormItem(
     name: row.name,
     code: row.code,
     categoryName: row.categoryName,
+    quantity: row.quantity,
     status: row.status as TransactionFormItem["status"],
     machineName: row.machineName,
     hasOutstandingIssue: row.hasOutstandingIssue,
@@ -72,6 +73,7 @@ export function TransactionForm({
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [quantity, setQuantity] = useState("1");
+  const [issueQuantity, setIssueQuantity] = useState("1");
   const [minQuantity, setMinQuantity] = useState("0");
   const [notes, setNotes] = useState("");
   const [searchResults, setSearchResults] = useState<TransactionFormItem[] | null>(
@@ -108,16 +110,18 @@ export function TransactionForm({
 
     return list;
   }, [items, type, selectedItem]);
+  const selectedAvailableQty = selectedItem?.quantity ?? null;
+
   const itemOptions = useMemo(
     () =>
       filteredItems.map((item) => ({
         value: item.id,
         label: `${item.name}${item.code ? ` (${item.code})` : ""} — ${ItemStatusLabel[item.status]}${
           item.machineName ? ` / ${item.machineName}` : ""
-        }`,
+        }${type === "ISSUE" ? ` — رصيد ${item.quantity}` : ""}`,
         keywords: `${item.name} ${item.code ?? ""} ${item.categoryName}`,
       })),
-    [filteredItems],
+    [filteredItems, type],
   );
 
   const machineOptions = useMemo(
@@ -168,6 +172,7 @@ export function TransactionForm({
         type: "ISSUE",
         itemId,
         machineId,
+        quantity: Number(issueQuantity),
         notes: notes || null,
       };
     } else {
@@ -191,6 +196,7 @@ export function TransactionForm({
         setName("");
         setCode("");
         setQuantity("1");
+        setIssueQuantity("1");
         setNotes("");
       } else {
         toast.error(result.message ?? "فشل التسجيل");
@@ -317,15 +323,35 @@ export function TransactionForm({
           )}
 
           {type === "ISSUE" ? (
-            <div className="space-y-2">
-              <Label>المكينة</Label>
-              <SearchCombobox
-                options={machineOptions}
-                value={machineId}
-                onChange={setMachineId}
-                placeholder="ابحث واختر المكينة"
-                searchPlaceholder="اسم المكينة..."
-              />
+            <div className="grid gap-4 sm:grid-cols-[1fr_min(7.5rem,28%)]">
+              <div className="space-y-2">
+                <Label>المكينة</Label>
+                <SearchCombobox
+                  options={machineOptions}
+                  value={machineId}
+                  onChange={setMachineId}
+                  placeholder="ابحث واختر المكينة"
+                  searchPlaceholder="اسم المكينة..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="issue-qty">العدد</Label>
+                <Input
+                  id="issue-qty"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={selectedAvailableQty ?? undefined}
+                  step={1}
+                  value={issueQuantity}
+                  onChange={(e) => setIssueQuantity(e.target.value)}
+                  dir="ltr"
+                  required
+                />
+                {selectedAvailableQty != null ? (
+                  <p className={ui.subtitle}>المتاح: {selectedAvailableQty}</p>
+                ) : null}
+              </div>
             </div>
           ) : null}
 

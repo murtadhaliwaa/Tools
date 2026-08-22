@@ -145,7 +145,7 @@ export function IssuesReportExport(
     <ExportButtons
       {...rest}
       limitHint={EXPORT_LIMIT_HINT}
-      headers={["الأداة", "الرمز", "المكينة", "بواسطة", "التاريخ", "ملاحظات"]}
+      headers={["الأداة", "الرمز", "العدد", "المكينة", "بواسطة", "التاريخ", "ملاحظات"]}
       getRows={() =>
         loadIssuesExportRows({ from, to, machineId, itemId })
       }

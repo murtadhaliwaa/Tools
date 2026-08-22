@@ -99,10 +99,17 @@ export const additionSchema = transactionBaseSchema.extend({
   minQuantity: minQuantityField,
 });
 
+const issueQuantityField = z.coerce
+  .number({ error: "العدد غير صالح" })
+  .int("العدد يجب أن يكون عدداً صحيحاً")
+  .min(1, "العدد يجب أن يكون 1 على الأقل")
+  .max(1_000_000, "العدد كبير جداً");
+
 export const issueSchema = transactionBaseSchema.extend({
   type: z.literal("ISSUE"),
   itemId: z.string().min(1, "الأداة مطلوبة"),
   machineId: z.string().min(1, "المكينة مطلوبة"),
+  quantity: issueQuantityField.default(1),
 });
 
 export const returnFromMachineSchema = transactionBaseSchema.extend({
