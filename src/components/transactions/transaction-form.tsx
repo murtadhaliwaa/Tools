@@ -36,10 +36,13 @@ type MachineOption = { id: string; name: string };
 const TYPE_OPTIONS = [
   { value: "ISSUE", label: "صرف لمكينة" },
   { value: "RETURN_FROM_MACHINE", label: "إرجاع من مكينة" },
+  { value: "STOCK_ADDITION", label: "إضافة على المواد" },
   { value: "ADDITION", label: "إضافة أداة جديدة" },
   { value: "SEND_TO_REPAIR", label: "إخراج للتصليح" },
   { value: "RETURN_FROM_REPAIR", label: "رجوع من التصليح" },
 ] as const;
+
+type TransactionFormType = (typeof TYPE_OPTIONS)[number]["value"];
 
 function toFormItem(
   row: Awaited<ReturnType<typeof searchTransactionItemsAction>>[number],
@@ -65,8 +68,7 @@ export function TransactionForm({
   machines: MachineOption[];
   items: TransactionFormItem[];
 }) {
-  const [type, setType] =
-    useState<(typeof TYPE_OPTIONS)[number]["value"]>("ISSUE");
+  const [type, setType] = useState<TransactionFormType>("ISSUE");
   const [itemId, setItemId] = useState("");
   const [machineId, setMachineId] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -74,6 +76,7 @@ export function TransactionForm({
   const [code, setCode] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [issueQuantity, setIssueQuantity] = useState("1");
+  const [stockQuantity, setStockQuantity] = useState("1");
   const [minQuantity, setMinQuantity] = useState("0");
   const [notes, setNotes] = useState("");
   const [searchResults, setSearchResults] = useState<TransactionFormItem[] | null>(
@@ -118,7 +121,7 @@ export function TransactionForm({
         value: item.id,
         label: `${item.name}${item.code ? ` (${item.code})` : ""} — ${ItemStatusLabel[item.status]}${
           item.machineName ? ` / ${item.machineName}` : ""
-        }${type === "ISSUE" ? ` — رصيد ${item.quantity}` : ""}`,
+        }${type === "ISSUE" || type === "STOCK_ADDITION" ? ` — رصيد ${item.quantity}` : ""}`,
         keywords: `${item.name} ${item.code ?? ""} ${item.categoryName}`,
       })),
     [filteredItems, type],
@@ -175,6 +178,13 @@ export function TransactionForm({
         quantity: Number(issueQuantity),
         notes: notes || null,
       };
+    } else if (type === "STOCK_ADDITION") {
+      payload = {
+        type: "STOCK_ADDITION",
+        itemId,
+        quantity: Number(stockQuantity),
+        notes: notes || null,
+      };
     } else {
       payload = {
         type,
@@ -197,6 +207,7 @@ export function TransactionForm({
         setCode("");
         setQuantity("1");
         setIssueQuantity("1");
+        setStockQuantity("1");
         setNotes("");
       } else {
         toast.error(result.message ?? "فشل التسجيل");
@@ -220,7 +231,7 @@ export function TransactionForm({
               value={type}
               onValueChange={(v) => {
                 if (!v) return;
-                setType(v as typeof type);
+                setType(v as TransactionFormType);
                 setItemId("");
                 setSelectedItem(null);
               }}
@@ -352,6 +363,33 @@ export function TransactionForm({
                   <p className={ui.subtitle}>المتاح: {selectedAvailableQty}</p>
                 ) : null}
               </div>
+            </div>
+          ) : null}
+
+          {type === "STOCK_ADDITION" ? (
+            <div className="space-y-2">
+              <Label htmlFor="stock-qty">العدد المُضاف</Label>
+              <Input
+                id="stock-qty"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                step={1}
+                value={stockQuantity}
+                onChange={(e) => setStockQuantity(e.target.value)}
+                dir="ltr"
+                required
+              />
+              {selectedAvailableQty != null ? (
+                <p className={ui.subtitle}>
+                  الرصيد الحالي: {selectedAvailableQty} — بعد الإضافة:{" "}
+                  {selectedAvailableQty + Number(stockQuantity || 0)}
+                </p>
+              ) : (
+                <p className={ui.subtitle}>
+                  اختر المادة أولاً لمعرفة الرصيد الحالي
+                </p>
+              )}
             </div>
           ) : null}
 

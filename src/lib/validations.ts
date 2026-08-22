@@ -82,6 +82,7 @@ export const updateTransactionNotesSchema = z.object({
 export const transactionBaseSchema = z.object({
   type: z.enum([
     "ADDITION",
+    "STOCK_ADDITION",
     "ISSUE",
     "RETURN_FROM_MACHINE",
     "SEND_TO_REPAIR",
@@ -112,6 +113,12 @@ export const issueSchema = transactionBaseSchema.extend({
   quantity: issueQuantityField.default(1),
 });
 
+export const stockAdditionSchema = transactionBaseSchema.extend({
+  type: z.literal("STOCK_ADDITION"),
+  itemId: z.string().min(1, "الأداة مطلوبة"),
+  quantity: issueQuantityField.default(1),
+});
+
 export const returnFromMachineSchema = transactionBaseSchema.extend({
   type: z.literal("RETURN_FROM_MACHINE"),
   itemId: z.string().min(1, "الأداة مطلوبة"),
@@ -124,6 +131,7 @@ export const repairSchema = transactionBaseSchema.extend({
 
 export const createTransactionSchema = z.discriminatedUnion("type", [
   additionSchema,
+  stockAdditionSchema,
   issueSchema,
   returnFromMachineSchema,
   repairSchema,

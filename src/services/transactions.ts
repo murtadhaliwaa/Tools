@@ -80,6 +80,26 @@ export async function createTransaction(
       item.quantity,
     );
 
+    if (data.type === "STOCK_ADDITION") {
+      const addQty = data.quantity;
+
+      await tx.item.update({
+        where: { id: item.id },
+        data: { quantity: { increment: addQty } },
+      });
+
+      return tx.transaction.create({
+        data: {
+          organizationId,
+          type: "STOCK_ADDITION",
+          itemId: data.itemId,
+          quantity: addQty,
+          notes: data.notes || null,
+          performedById: profile.id,
+        },
+      });
+    }
+
     if (data.type === "ISSUE") {
       if (status === ItemStatus.IN_REPAIR) {
         throw new Error("لا يمكن صرف أداة تحت التصليح");

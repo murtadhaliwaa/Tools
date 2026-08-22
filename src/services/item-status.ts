@@ -2,6 +2,7 @@ import { ItemStatus, type ItemStatus as ItemStatusType } from "@/types/domain";
 
 type TransactionTypeLike =
   | "ADDITION"
+  | "STOCK_ADDITION"
   | "ISSUE"
   | "RETURN_FROM_MACHINE"
   | "SEND_TO_REPAIR"
@@ -32,6 +33,7 @@ export function deriveItemStatus(
       // لا يزال هناك رصيد → متوفرة للصرف مرة أخرى
       return ItemStatus.AVAILABLE;
     case "ADDITION":
+    case "STOCK_ADDITION":
     case "RETURN_FROM_REPAIR":
     case "RETURN_FROM_MACHINE":
     case null:
@@ -49,5 +51,6 @@ export function quantityDeltaOnDelete(
 ): number {
   if (type === "ISSUE") return quantity;
   if (type === "RETURN_FROM_MACHINE") return -quantity;
+  if (type === "STOCK_ADDITION") return -quantity;
   return 0;
 }

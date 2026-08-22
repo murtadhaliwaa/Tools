@@ -140,7 +140,7 @@ function TransactionsRows({
                   <TransactionTypeBadge type={tx.type} />
                 </TableCell>
                 <TableCell>{tx.item.name}</TableCell>
-                <TableCell>{tx.type === "ISSUE" || tx.type === "RETURN_FROM_MACHINE" ? tx.quantity : "—"}</TableCell>
+                <TableCell>{tx.type === "ISSUE" || tx.type === "RETURN_FROM_MACHINE" || tx.type === "STOCK_ADDITION" ? tx.quantity : "—"}</TableCell>
                 <TableCell>{tx.machine?.name ?? "—"}</TableCell>
                 <TableCell className="max-w-[12rem] truncate text-sm text-muted-foreground">
                   {tx.notes || "—"}

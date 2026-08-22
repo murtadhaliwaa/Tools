@@ -32,6 +32,7 @@ import { assertServerEnv, getPublicEnv } from "@/lib/env";
 describe("deriveItemStatus", () => {
   it("maps transaction types to statuses with quantity", () => {
     expect(deriveItemStatus("ADDITION", 1)).toBe(ItemStatus.AVAILABLE);
+    expect(deriveItemStatus("STOCK_ADDITION", 4)).toBe(ItemStatus.AVAILABLE);
     expect(deriveItemStatus("ISSUE", 0)).toBe(ItemStatus.ISSUED);
     expect(deriveItemStatus("ISSUE", 3)).toBe(ItemStatus.AVAILABLE);
     expect(deriveItemStatus("RETURN_FROM_MACHINE", 1)).toBe(ItemStatus.AVAILABLE);
@@ -44,6 +45,7 @@ describe("deriveItemStatus", () => {
 describe("TransactionTypeLabel", () => {
   it("covers all transaction types in Arabic", () => {
     expect(TransactionTypeLabel.ADDITION).toBeTruthy();
+    expect(TransactionTypeLabel.STOCK_ADDITION).toBeTruthy();
     expect(TransactionTypeLabel.ISSUE).toBeTruthy();
     expect(TransactionTypeLabel.RETURN_FROM_MACHINE).toBeTruthy();
     expect(TransactionTypeLabel.SEND_TO_REPAIR).toBeTruthy();
@@ -122,6 +124,18 @@ describe("createTransactionSchema", () => {
     expect(parsed.success).toBe(true);
     if (parsed.success) {
       expect(parsed.data.type).toBe("ADDITION");
+    }
+  });
+
+  it("accepts STOCK_ADDITION with item and quantity", () => {
+    const parsed = createTransactionSchema.safeParse({
+      type: "STOCK_ADDITION",
+      itemId: "item1",
+      quantity: 10,
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success && parsed.data.type === "STOCK_ADDITION") {
+      expect(parsed.data.quantity).toBe(10);
     }
   });
 });
@@ -254,6 +268,7 @@ describe("quantityDeltaOnDelete", () => {
     expect(quantityDeltaOnDelete("ISSUE", 5)).toBe(5);
     expect(quantityDeltaOnDelete("RETURN_FROM_MACHINE")).toBe(-1);
     expect(quantityDeltaOnDelete("RETURN_FROM_MACHINE", 3)).toBe(-3);
+    expect(quantityDeltaOnDelete("STOCK_ADDITION", 4)).toBe(-4);
     expect(quantityDeltaOnDelete("ADDITION")).toBe(0);
     expect(quantityDeltaOnDelete("SEND_TO_REPAIR")).toBe(0);
     expect(quantityDeltaOnDelete("RETURN_FROM_REPAIR")).toBe(0);

@@ -20,7 +20,8 @@ export const ItemStatusLabel: Record<ItemStatus, string> = {
 };
 
 export const TransactionTypeLabel = {
-  ADDITION: "إضافة",
+  ADDITION: "إضافة أداة جديدة",
+  STOCK_ADDITION: "إضافة على المواد",
   ISSUE: "صرف",
   RETURN_FROM_MACHINE: "إرجاع من مكينة",
   SEND_TO_REPAIR: "إخراج للتصليح",

@@ -26,6 +26,7 @@ import {
 
 const TYPE_ORDER = [
   "ADDITION",
+  "STOCK_ADDITION",
   "ISSUE",
   "RETURN_FROM_MACHINE",
   "SEND_TO_REPAIR",

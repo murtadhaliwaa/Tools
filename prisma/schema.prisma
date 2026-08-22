@@ -20,6 +20,7 @@ enum Role {
 /// أنواع الحركات — إضافة نوع جديد مستقبلاً = قيمة enum + منطق في الـ service
 enum TransactionType {
   ADDITION // إضافة أداة جديدة (تصبح متوفرة)
+  STOCK_ADDITION // إضافة كمية على مادة موجودة (شراء دفعة جديدة)
   ISSUE // صرف أداة إلى مكينة
   RETURN_FROM_MACHINE // إرجاع من المكينة (تصبح متوفرة)
   SEND_TO_REPAIR // إخراج للتصليح
